@@ -104,7 +104,8 @@ class Agent:
         turn_footer = footer(used_trace, answer)
         warnings = collect_warnings(used_trace)
         last_subject = next((t.report["subject"] for t in reversed(previous) if t.report), None)
-        report = build_report(trace, answer, question, turn_footer, warnings, outcome, last_subject)
+        report = build_report(trace, answer, self._report_question(previous, question), turn_footer, warnings,
+                              outcome, last_subject)
         if report is not None:
             display = report.markdown
         else:
@@ -143,6 +144,14 @@ class Agent:
             f"{CAP_PREFIX} The tool-call limit for this question was reached. Answer now without tools, using only "
             "the tool results above, and say which information is still missing.")}], tools=False)
         return (forced.text.strip() or EMPTY_TEXT), rounds + 1, True
+
+    @staticmethod
+    def _report_question(previous: list[Turn], question: str) -> str:
+        """A reply to a clarifying question ("New York City") is read with the question it clarifies."""
+        last = previous[-1] if previous else None
+        if last and last.report is None and last.display_text.rstrip().endswith("?"):
+            return f"{last.question}\n{question}"
+        return question
 
     @staticmethod
     def _reused_trace(previous: list[Turn], answer: str) -> list[dict]:

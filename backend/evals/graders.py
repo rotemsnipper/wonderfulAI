@@ -81,7 +81,8 @@ def grade_modes(case: dict, turns: list[dict]) -> tuple[bool, str]:
 
 
 def grade_report_sections(case: dict, turns: list[dict]) -> tuple[bool, str]:
-    missing = [(i, sorted(set(S.REQUIRED[r["kind"]]) - {s["id"] for s in r["sections"]})) for i, _, r in _full_reports(turns)]
+    missing = [(i, sorted(set(S.REQUIRED[r["kind"]]) - {s["id"] for s in r["sections"]}
+                          - (set() if r.get("investment", True) else {S.COMPARISON}))) for i, _, r in _full_reports(turns)]
     missing = [m for m in missing if m[1]]
     return not missing, f"missing sections {missing}" if missing else "required sections present"
 
@@ -116,6 +117,8 @@ def grade_label_match(case: dict, turns: list[dict]) -> tuple[bool, str]:
     """The recommendation the report shows is the tool's, for every airport the tool labeled."""
     bad = []
     for i, t, r in _full_reports(turns):
+        if not r.get("investment", True):
+            continue  # a factual report shows no labels
         details = _section(r, S.DETAILS)
         for row in _rows(r["kind"], _last_data_result(t)):
             rec = (row.get("score") or {}).get("recommendation")
@@ -132,8 +135,8 @@ def grade_comparison_names_airports(case: dict, turns: list[dict]) -> tuple[bool
         if r["kind"] == "ranking":
             rows = sorted((x for x in rows if x.get("rank")), key=lambda x: x["rank"])[:3]
         text = _section(r, S.COMPARISON)
-        if r["kind"] == "profile" and not text:
-            continue  # optional for a one-airport question that is not about investing
+        if not r.get("investment", True) or (r["kind"] == "profile" and not text):
+            continue  # a factual report has no Comparison; optional for a one-airport question
         missing = [x["code"] for x in rows if x.get("code") and x["code"] not in text]
         if missing:
             bad.append((i, missing))

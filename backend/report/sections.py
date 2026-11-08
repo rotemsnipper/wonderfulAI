@@ -37,6 +37,7 @@ REPORT, FOLLOW_UP = "report", "follow_up"
 
 ORDER = [DETAILS, COMPARISON, VERDICT, WHY, SPECIFIC, ROBUSTNESS, WARNINGS, ASSUMPTIONS, STILL_NEEDED]
 # Sections every full report of a kind has (section 9 depends on the question, robustness on the metric).
+# A factual comparison or profile (not about investing) has no Comparison: see `Report.investment`.
 REQUIRED = {
     "ranking": [DETAILS, COMPARISON, VERDICT, WHY, WARNINGS, ASSUMPTIONS],
     "comparison": [DETAILS, COMPARISON, VERDICT, WHY, SPECIFIC, WARNINGS, ASSUMPTIONS],
@@ -75,6 +76,7 @@ class Report:
     subject: str
     sections: list[Section]
     suggestions: list[str] = field(default_factory=list)
+    investment: bool = True  # False: a factual comparison or profile, shown without scores and Comparison
 
     @property
     def markdown(self) -> str:

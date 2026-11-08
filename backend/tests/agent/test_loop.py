@@ -188,6 +188,13 @@ def test_follow_up_on_the_same_subject_is_short_after_a_resume(fixture_tools):
     assert "Capacity evidence" not in out["display_text"] and "Confidence" in out["display_text"]
 
 
+def test_reply_to_a_clarifying_question_is_reported_for_the_original_question(fixture_tools):
+    store = InMemorySessionStore()
+    fixture_agent(text_reply("Which airport do you mean?")).run_turn(store, "u", "c", "Should the cargo hub expand?")
+    out = fixture_agent(profile_call(), text_reply(REPORT_TEXT)).run_turn(store, "u", "c", "NRC")
+    assert out["report"]["investment"] is True and ADVICE_LINE in out["display_text"]
+
+
 def test_plain_reply_has_no_report(fixture_tools):
     out = fixture_agent(text_reply("Which Portland do you mean?")).run_turn(InMemorySessionStore(), "u", "c", "Portland?")
     assert out["report"] is None and out["display_text"] == "Which Portland do you mean?"

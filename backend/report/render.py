@@ -7,7 +7,8 @@ values (or the tools' own rounding via `fmt`), so no number in a code section ca
 Mode: a full report for a new subject or when the question asks for one; a short follow-up (one answering
 block, the model's text, one warnings-and-confidence line) when the turn has the same kind as the
 conversation's last report and only airports already in it (for a ranking: the same filters). No data tool
-means no report (None).
+means no report (None). A full comparison or profile for a question that is not about investing is factual: it
+leaves out the scores, strengths and weaknesses and the model's Comparison, so the answer is not buried.
 """
 import re
 
@@ -61,11 +62,12 @@ def build_report(trace: list[dict], model_text: str, question: str, footer: dict
     subject = _subject(kind, env)
     follow_up = _same_subject(subject, last_subject) and not S.FULL_REPORT_REQUEST.search(question or "")
     model = _model_sections(model_text, outcome)
+    investment = kind == "ranking" or bool(S.INVESTMENT_QUESTION.search(question or ""))
 
     rows = _airports(kind, env)
     halves = _profile_halves(question) if kind == "profile" else None
     code = {
-        S.DETAILS: _details(kind, env, rows),
+        S.DETAILS: _details(kind, env, rows, investment),
         S.SPECIFIC: _specific(kind, env, rows, halves),
         S.ROBUSTNESS: _robustness(env),
     }
@@ -80,14 +82,14 @@ def build_report(trace: list[dict], model_text: str, question: str, footer: dict
     code[S.ASSUMPTIONS] = _assumptions(env, footer)
     if S.INVESTMENT_QUESTION.search(question or ""):
         code[S.STILL_NEEDED] = "\n".join(f"- {x}" for x in S.STILL_NEEDED_ITEMS) + f"\n\n{S.ADVICE_LINE}"
-    by_id = {s.id: s for s in model}
+    by_id = {s.id: s for s in model if investment or s.id != S.COMPARISON}
     out = []
     for sid in S.ORDER:
         if sid in S.MODEL_SECTIONS:
             out += [by_id[sid]] if sid in by_id else []
         elif code.get(sid):
             out.append(_code_section(kind, sid, code[sid], halves))
-    return Report(kind, S.REPORT, subject, out, _suggestions(kind, env, rows, halves))
+    return Report(kind, S.REPORT, subject, out, _suggestions(kind, env, rows, halves), investment)
 
 
 def _model_sections(model_text: str, outcome: dict) -> list[Section]:
@@ -166,7 +168,7 @@ def _recommendation(score: dict) -> str:
     return score.get("recommendation") or score.get("note") or "n/a"
 
 
-def _details(kind: str, env: dict, rows: list[dict]) -> str:
+def _details(kind: str, env: dict, rows: list[dict], investment: bool) -> str:
     res = env["result"]
     if kind == "ranking" and res["metric"] != "score":
         label = next((d["label"] for d in env.get("definitions") or []), res["ranked_by"])
@@ -174,13 +176,13 @@ def _details(kind: str, env: dict, rows: list[dict]) -> str:
         return "\n".join([head] + [f"| {r['rank']} | {r['name']} ({r['code']}) | {r['size_tier']} | {r['display']} |"
                                    for r in rows])
     shown = sorted(rows, key=lambda r: r["rank"])[:DETAIL_TOP] if kind == "ranking" else rows
-    out = _detail_grid(env, shown, percentiles=kind == "profile") + _strengths(shown)
+    out = _detail_grid(env, shown, kind == "profile", investment) + (_strengths(shown) if investment else "")
     if kind == "ranking":
         out += "\n\n*All ranked airports, by size tier*\n\n" + _score_tables(res, rows)
     return out
 
 
-def _detail_grid(env: dict, rows: list[dict], percentiles: bool) -> str:
+def _detail_grid(env: dict, rows: list[dict], percentiles: bool, scores_shown: bool) -> str:
     baseline = (env.get("meta", {}).get("periods") or {}).get("baseline", "baseline")
     codes = [r["code"] for r in rows]
     head = ["", *codes] + (["Percentile among covered airports"] if percentiles else [])
@@ -194,10 +196,11 @@ def _detail_grid(env: dict, rows: list[dict], percentiles: bool) -> str:
     line("Size tier", [r["size_tier"] for r in rows])
     line("Usable runways", [f"{r['runways_usable']} of {r['runways_total']}" for r in rows])
     scores = [r.get("score") or {} for r in rows]
-    line("Score (0-100)", [_total(s) for s in scores])
-    line("Passenger side", [_num(s.get("passenger_score")) for s in scores])
-    line("Flight side", [_num(s.get("flight_score")) for s in scores])
-    line("Recommendation", [_recommendation(s) for s in scores])
+    if scores_shown:
+        line("Score (0-100)", [_total(s) for s in scores])
+        line("Passenger side", [_num(s.get("passenger_score")) for s in scores])
+        line("Flight side", [_num(s.get("flight_score")) for s in scores])
+        line("Recommendation", [_recommendation(s) for s in scores])
     for key, label, component in CAPACITY_ROWS:
         pct = ""
         if percentiles and component:

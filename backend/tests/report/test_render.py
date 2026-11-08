@@ -49,7 +49,7 @@ def test_ranking_report_puts_details_first_then_the_model_text_then_fixed_sectio
 
 
 def test_comparison_details_have_location_runways_and_labels_and_the_block_has_differences():
-    r = build([call("compare_airports", {"codes": ["LAA", "SAA"]})], question="Compare LAA and SAA congestion.")
+    r = build([call("compare_airports", {"codes": ["LAA", "SAA"]})], question="Should LAA or SAA expand?")
     assert r.kind == "comparison" and S.ROBUSTNESS not in ids(r)
     details = r.section(S.DETAILS).markdown
     assert "Lakeshore, CA" in details and "| Usable runways | 4 of 4 | 1 of 2 |" in details and "Deprioritize" in details
@@ -71,9 +71,17 @@ def test_profile_shows_percentiles_and_only_the_half_the_question_asks_about():
 
 
 def test_airport_without_delay_data_shows_unknown_and_not_scored():
-    r = build([call("airport_profile", {"code": "NHV"})], question="Is NHV congested?")
+    r = build([call("airport_profile", {"code": "NHV"})], question="Is NHV worth expanding?")
     assert "unknown" in r.section(S.SPECIFIC).markdown
     assert "not scored" in r.section(S.DETAILS).markdown.lower()
+
+
+def test_factual_question_leaves_out_scores_strengths_and_the_comparison():
+    r = build([call("compare_airports", {"codes": ["LAA", "SAA"]})], question="Which is busier and how delayed is it?")
+    details = r.section(S.DETAILS).markdown
+    assert not r.investment and S.COMPARISON not in ids(r) and S.VERDICT in ids(r)
+    assert "Score (0-100)" not in details and "Recommendation" not in details and "strengths" not in details
+    assert "Passengers" in details and r.section(S.SPECIFIC) is not None
 
 
 def test_ranking_by_one_metric_shows_that_metric_and_no_robustness():

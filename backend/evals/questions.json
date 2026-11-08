@@ -173,6 +173,31 @@
       ]
     },
     {
+      "id": "biggest_in_new_york",
+      "turns": [
+        "What is the biggest airport in New York and how many flights are delayed there?",
+        "New York City"
+      ],
+      "expected_airports": [
+        "JFK"
+      ],
+      "required": [
+        "(?i)delay"
+      ],
+      "forbidden": [
+        "(?i)\\*\\*Comparison\\*\\*",
+        "(?i)which (one|airport) do you mean"
+      ],
+      "number_check": true,
+      "rules": [
+        "R2"
+      ],
+      "expect_modes": [
+        "plain",
+        null
+      ]
+    },
+    {
       "id": "out_of_scope_cost",
       "turns": [
         "How much would a new terminal at Boston Logan cost, and what's the ROI?"
