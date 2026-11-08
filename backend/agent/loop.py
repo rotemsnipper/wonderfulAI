@@ -27,6 +27,12 @@ NUMBER_CHECK_PREFIX = "[number-check]"
 CAP_PREFIX = "[tool-limit]"
 EMPTY_TEXT = "I could not produce an answer to that. Please try rephrasing the question."
 MODEL_ERROR_TEXT = "The model is not available right now, so this question was not answered. Please try again."
+# refresh_data replaces the dataset, so it runs only when the user's own words ask for it (code, not the prompt).
+REFRESH_TOOL = "refresh_data"
+_REFRESH_VERB = r"\b(update|refresh|reload|re-?download)\b"
+REFRESH_REQUEST = re.compile(rf"(?is){_REFRESH_VERB}.*\bdata(set)?\b|\bdata(set)?\b.*{_REFRESH_VERB}")
+REFRESH_REFUSED = ("refresh_data runs only when the user asks to update or refresh the data. Tell the user what "
+                   "check_data_updates found and ask whether they want the data updated.")
 
 Event = Callable[[str, dict], None]
 
@@ -62,7 +68,7 @@ class Agent:
             return reply
 
         try:
-            answer, rounds, capped = self._rounds(ask, msgs, trace)
+            answer, rounds, capped = self._rounds(ask, msgs, trace, self._asked_text(previous, question))
             outcome = {"status": "passed", "unverified": [], "rounds": rounds, "capped": capped}
             pool_now = pool | pool_from_trace(trace)
             allowed = f"{question}\n{self.system}"
@@ -123,7 +129,7 @@ class Agent:
         self.on_event("done", {"status": outcome["status"]})
         return {**turn.to_dict(), "saved": True}
 
-    def _rounds(self, ask, msgs: list[dict], trace: list[dict]) -> tuple[str, int, bool]:
+    def _rounds(self, ask, msgs: list[dict], trace: list[dict], asked: str) -> tuple[str, int, bool]:
         """Model calls with tool use for this turn. Returns (answer text, rounds used, whether capped)."""
         rounds = 0
         while rounds < self.round_cap:
@@ -134,7 +140,10 @@ class Agent:
                              "tool_calls": [tc.to_message() for tc in reply.tool_calls]})
                 for tc in reply.tool_calls:
                     self.on_event("tool_start", {"name": tc.name, "args": tc.args})
-                    result = self.call_tool(tc.name, tc.args)
+                    if tc.name == REFRESH_TOOL and not REFRESH_REQUEST.search(asked):
+                        result = {"error": REFRESH_REFUSED, "valid_options": []}
+                    else:
+                        result = self.call_tool(tc.name, tc.args)
                     self.on_event("tool_end", {"name": tc.name, "error": result.get("error")})
                     trace.append({"tool": tc.name, "args": tc.args, "result": result})
                     msgs.append({"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": result})
@@ -144,6 +153,14 @@ class Agent:
             f"{CAP_PREFIX} The tool-call limit for this question was reached. Answer now without tools, using only "
             "the tool results above, and say which information is still missing.")}], tools=False)
         return (forced.text.strip() or EMPTY_TEXT), rounds + 1, True
+
+    @staticmethod
+    def _asked_text(previous: list[Turn], question: str) -> str:
+        """The user's words, plus the assistant's question they answer ("Shall I update the data?" "Yes")."""
+        last = previous[-1] if previous else None
+        if last and last.report is None and last.display_text.rstrip().endswith("?"):
+            return f"{last.display_text}\n{question}"
+        return question
 
     @staticmethod
     def _report_question(previous: list[Turn], question: str) -> str:

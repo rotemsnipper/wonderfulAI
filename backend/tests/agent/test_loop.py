@@ -188,6 +188,14 @@ def test_follow_up_on_the_same_subject_is_short_after_a_resume(fixture_tools):
     assert "Capacity evidence" not in out["display_text"] and "Confidence" in out["display_text"]
 
 
+def test_refresh_runs_only_when_the_user_asks_to_update_the_data():
+    for question, runs in (("Is there newer data?", False), ("Please update the data.", True)):
+        agent, calls = make_agent(FakeModel(tool_reply(name="refresh_data"), text_reply("Done.")))
+        out = agent.run_turn(InMemorySessionStore(), "u", "c", question)
+        assert bool(calls) is runs, question
+        assert ("error" in out["tool_trace"][0]["result"]) is not runs
+
+
 def test_reply_to_a_clarifying_question_is_reported_for_the_original_question(fixture_tools):
     store = InMemorySessionStore()
     fixture_agent(text_reply("Which airport do you mean?")).run_turn(store, "u", "c", "Should the cargo hub expand?")

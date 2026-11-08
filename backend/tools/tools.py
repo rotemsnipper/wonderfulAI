@@ -1,4 +1,4 @@
-"""The four agent tools and the dispatcher.
+"""The four data tools, the dispatcher, and the registry that also holds the two data-update tools.
 
 Every tool returns the shared envelope (envelope.py) or {error, valid_options}. All numbers the model may
 quote are computed here: raw values, display strings, and differences and ratios between airports
@@ -14,6 +14,7 @@ from backend.scoring import formulas, label, metrics
 from backend.scoring.robustness import robustness
 from backend.scoring.score import score_all
 from backend.scoring.warnings import airport_warnings, sort_warnings
+from backend.tools import data_refresh
 from backend.tools.envelope import DataQuality, Definition, Envelope, Meta, error_result
 from backend.tools.resolver import Resolver
 from backend.tools.store import Store, load_store
@@ -460,6 +461,8 @@ TOOLS = {
     "rank_airports": rank_airports,
     "compare_airports": compare_airports,
     "airport_profile": airport_profile,
+    "check_data_updates": data_refresh.check_data_updates,
+    "refresh_data": data_refresh.refresh_data,
 }
 
 

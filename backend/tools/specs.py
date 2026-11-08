@@ -1,4 +1,4 @@
-"""JSON schemas the model sees for the four tools. Flat, with enums, so free-tier tool calling stays reliable."""
+"""JSON schemas the model sees for the tools. Flat, with enums, so free-tier tool calling stays reliable."""
 from backend.config import SERVING_DIR, load_settings
 from backend.tools.tools import MAX_COMPARE, PER_GROUP_CAP, RANK_METRICS, REGIONS
 
@@ -69,5 +69,22 @@ TOOL_SPECS: list[dict] = [
             },
             "required": ["code"],
         },
+    },
+    {
+        "name": "check_data_updates",
+        "description": (
+            "Check whether the public BTS sources have months newer than our data window. Quick and changes "
+            "nothing. Use when the user asks whether the data is current or newer data exists."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "refresh_data",
+        "description": (
+            "Download the BTS and OurAirports files again and rebuild our data, about two minutes. Only when the "
+            "user asks to update or refresh the data. Does nothing when no newer month exists; on any failure the "
+            "old data is kept. Returns the old and new data windows."
+        ),
+        "parameters": {"type": "object", "properties": {}},
     },
 ]

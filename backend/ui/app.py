@@ -104,7 +104,9 @@ def _run_pending(backend: ChatBackend, conv_id: str, question: str) -> None:
         status = st.status("Working…")
 
         def on_event(kind: str, data: dict) -> None:
-            if kind == "tool_start":
+            if kind == "tool_start" and data["name"] == "refresh_data":
+                status.update(label="Downloading and rebuilding the data (about two minutes)…")
+            elif kind == "tool_start":
                 status.update(label=f"Calling {data['name']}…")
             elif kind == "rewrite":
                 status.update(label="Checking numbers…")

@@ -198,6 +198,26 @@
       ]
     },
     {
+      "id": "data_update_check",
+      "turns": [
+        "Is there newer data than what you are using?"
+      ],
+      "expected_airports": [],
+      "required": [
+        "(?i)2026-07|July 2026"
+      ],
+      "forbidden": [
+        "(?i)\\b(have|has been|was) (updated|refreshed)"
+      ],
+      "number_check": true,
+      "rules": [
+        "R11"
+      ],
+      "expect_modes": [
+        "plain"
+      ]
+    },
+    {
       "id": "out_of_scope_cost",
       "turns": [
         "How much would a new terminal at Boston Logan cost, and what's the ROI?"
