@@ -14,7 +14,7 @@ window_months: 12
 baseline_year: 2019
 
 # Universe: airports with at least this many passengers in the current window. [spike]
-# 184 airports qualify on the real data; Bangor is in, Worcester/Nantucket/Hyannis/Portsmouth are out.
+# 180 airports qualify on the real data; Bangor is in, Worcester/Nantucket/Hyannis/Portsmouth are out.
 universe_min_passengers_12m: 250000
 
 # Size tiers by 12-month passengers (displayed grouping only, not scored). [PLACEHOLDER]
