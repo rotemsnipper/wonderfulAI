@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -7,7 +8,7 @@ from backend.agent.session import InMemorySessionStore, Turn
 from backend.tools import tools
 from backend.tools.store import load_store
 from backend.ui.app import SAMPLE_QUESTIONS
-from backend.ui.chat_backend import ChatBackend
+from backend.ui.chat_backend import NOT_HEARD_TEXT, ChatBackend
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "serving"
 
@@ -93,3 +94,43 @@ def test_switching_conversations_shows_the_selected_history():
     shown = markdown_text(at)
     assert SAMPLE_QUESTIONS[0] in shown and SAMPLE_QUESTIONS[1] in shown
     assert SAMPLE_QUESTIONS[2] not in shown
+
+
+class FakeRecording:
+    type = "audio/wav"
+
+    def getvalue(self):
+        return b"wav"
+
+
+def _chat_submit_script(backend, value):
+    import streamlit as st
+
+    from backend.ui.app import _queue_chat
+
+    st.session_state["typed"] = value
+    _queue_chat(backend)
+
+
+def submit_recording(transcriber):
+    """AppTest cannot attach audio to st.chat_input, so the on_submit callback gets the value the widget would give."""
+    backend = ChatBackend(InMemorySessionStore(), transcriber=transcriber)
+    value = SimpleNamespace(text="", audio=FakeRecording())
+    at = AppTest.from_function(_chat_submit_script, args=(backend, value), default_timeout=10)
+    at.run()
+    assert not at.exception
+    return at
+
+
+def test_recording_sent_from_the_chat_bar_is_transcribed_and_queued_as_a_spoken_question():
+    at = submit_recording(lambda audio, mime_type, hint: "Compare LA and Santa Ana.")
+
+    assert at.session_state["pending"] == "Compare LA and Santa Ana."
+    assert at.session_state["pending_spoken"]
+
+
+def test_failed_transcription_shows_the_message_and_asks_nothing():
+    at = submit_recording(lambda audio, mime_type, hint: "")
+
+    assert "pending" not in at.session_state
+    assert at.session_state["voice_error"] == NOT_HEARD_TEXT

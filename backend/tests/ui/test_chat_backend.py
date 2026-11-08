@@ -6,7 +6,10 @@ from backend.agent.loop import MODEL_ERROR_TEXT, Agent
 from backend.agent.session import InMemorySessionStore
 from backend.tools import tools
 from backend.tools.store import load_store
-from backend.ui.chat_backend import EMPTY_TEXT, SETUP_TEXT, TITLE_CHARS, UNTITLED, USER_ID, ChatBackend
+from backend.ui.chat_backend import (
+    EMPTY_TEXT, NOT_HEARD_TEXT, SETUP_TEXT, SPOKEN_CHARS, SPOKEN_CLOSING, TITLE_CHARS, UNTITLED, USER_ID,
+    VOICE_FAILED_TEXT, ChatBackend, spoken_text,
+)
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "serving"
 
@@ -125,3 +128,45 @@ def test_data_window_reads_the_tool_store():
         assert ChatBackend.data_window() == "2025-08 to 2026-07"
     finally:
         tools._ctx = None
+
+
+def test_recording_is_transcribed_with_the_airport_vocabulary_hint():
+    heard = []
+
+    def transcriber(audio, mime_type, hint):
+        heard.append((audio, mime_type, hint))
+        return " What is the unmet demand at SFO? "
+
+    backend = ChatBackend(InMemorySessionStore(), transcriber=transcriber)
+    assert backend.transcribe(b"wav", "audio/wav") == {"text": "What is the unmet demand at SFO?"}
+    assert heard[0][:2] == (b"wav", "audio/wav") and "Santa Ana" in heard[0][2]
+
+
+def test_failed_or_empty_transcription_returns_a_message_and_no_question():
+    def failing(audio, mime_type, hint):
+        raise llm.ModelError("model call failed with HTTP 500")
+
+    assert backend_for(failing).transcribe(b"wav", "audio/wav") == {"error": "ModelError", "display_text": VOICE_FAILED_TEXT}
+    assert backend_for(lambda a, m, h: "  ").transcribe(b"wav", "audio/wav")["display_text"] == NOT_HEARD_TEXT
+
+
+def backend_for(transcriber):
+    return ChatBackend(InMemorySessionStore(), transcriber=transcriber)
+
+
+def test_spoken_report_reads_the_verdict_without_markdown_then_points_to_the_screen():
+    verdict = ("**BOS** leads the region.\n\n| Airport | Score |\n|---|---|\n| BOS | 71 |\n\n"
+               "- Seats grew *-0.7%* at `PWM`.")
+    turn = {"display_text": "unused", "report": {"sections": [
+        {"id": "details", "title": "Details", "written_by": "code", "markdown": "Not read."},
+        {"id": "verdict", "title": "Verdict", "written_by": "model", "markdown": verdict}]}}
+
+    assert spoken_text(turn) == f"BOS leads the region. Seats grew -0.7% at PWM. {SPOKEN_CLOSING}"
+
+
+def test_spoken_plain_answer_stops_at_the_last_sentence_that_fits():
+    sentence = "Anchorage carries a large share of cargo flights. "
+    spoken = spoken_text({"display_text": sentence * 20, "report": None})
+
+    assert len(spoken) <= SPOKEN_CHARS and spoken.endswith("flights.")
+    assert len(spoken) > SPOKEN_CHARS - len(sentence)

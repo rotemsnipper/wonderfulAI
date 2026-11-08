@@ -134,3 +134,11 @@ def test_key_never_appears_in_logs_or_errors(fake, monkeypatch, caplog):
     with caplog.at_level(logging.DEBUG), pytest.raises(llm.RateLimitError) as e:
         llm.complete([{"role": "user", "content": "x"}], "s")
     assert "secret-key-123" not in caplog.text and "secret-key-123" not in str(e.value)
+
+
+def test_transcribe_sends_the_audio_with_the_vocabulary_hint(fake):
+    client = fake(response([types.Part(text=" Compare LAX and SNA congestion. ")]))
+    assert llm.transcribe(b"RIFF....", "audio/wav", "Santa Ana, SNA") == "Compare LAX and SNA congestion."
+    audio, prompt = client.models.calls[0]["contents"][0].parts
+    assert audio.inline_data.data == b"RIFF...." and audio.inline_data.mime_type == "audio/wav"
+    assert "Santa Ana, SNA" in prompt.text

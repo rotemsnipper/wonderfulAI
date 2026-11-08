@@ -168,11 +168,28 @@ def complete(messages: list[dict], system: str, tool_specs: list[dict] | None = 
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         max_output_tokens=max_output_tokens,
     )
-    contents = to_contents(messages)
+    return from_response(_generate(client, model, to_contents(messages), config), model)
+
+
+def transcribe(audio: bytes, mime_type: str, hint: str) -> str:
+    """Speech to text with the same model. `hint` lists words the speaker is likely to use (airport codes and
+    names), so they are not misheard. Raises the same errors as `complete`."""
+    client = get_client()
+    model = model_name()
+    prompt = ("Transcribe this spoken question in English. Return only the words spoken, with no comment. "
+              f"The speaker may use these words: {hint}")
+    contents = [types.Content(role="user", parts=[types.Part.from_bytes(data=audio, mime_type=mime_type),
+                                                  types.Part(text=prompt)])]
+    config = types.GenerateContentConfig(max_output_tokens=MAX_OUTPUT_TOKENS)
+    return from_response(_generate(client, model, contents, config), model).text.strip()
+
+
+def _generate(client, model: str, contents: list[types.Content],
+              config: types.GenerateContentConfig) -> types.GenerateContentResponse:
+    """One retry on a rate-limit error; any other API failure raises ModelError."""
     for attempt in (1, 2):
         try:
-            resp = client.models.generate_content(model=model, contents=contents, config=config)
-            return from_response(resp, model)
+            return client.models.generate_content(model=model, contents=contents, config=config)
         except errors.APIError as e:
             if _is_rate_limit(e):
                 if attempt == 1:

@@ -5,12 +5,14 @@ Every ask returns a dict in the shape of `run_turn`'s result; a refused or faile
 a user-facing `display_text` and `saved: False`.
 """
 import itertools
+import re
 from collections.abc import Callable
 
 from backend.agent import llm
 from backend.agent.loop import Agent, Event
 from backend.agent.prompt import build_system_prompt
 from backend.agent.session import SessionStore
+from backend.report.sections import VERDICT
 from backend.tools import tools
 from backend.tools.specs import TOOL_SPECS
 
@@ -21,8 +23,46 @@ UNTITLED = "New conversation"
 EMPTY_TEXT = "Please type a question."
 SETUP_TEXT = ("The model is not set up: set the GEMINI_API_KEY variable in the .env file at the project root, "
               "then restart the app.")
+NOT_HEARD_TEXT = "I couldn't make out a question in that recording. Please try again or type it."
+VOICE_FAILED_TEXT = "The recording could not be transcribed right now. Please type your question."
+# Words a spoken airport question is likely to contain, so the transcriber does not mishear them.
+VOICE_HINT = ("terminal expansion, congestion, long-haul flights, unmet flight demand, load factor, delays, "
+              "New England, LA, LAX, Santa Ana, John Wayne, SNA, Anchorage, ANC, SFO, San Francisco, Boston Logan, "
+              "BOS, JFK, LaGuardia, LGA, Newark, EWR, Portland, PWM, PDX, Bangor, BGR, New Haven, HVN")
+
+SPOKEN_CHARS = 420
+SPOKEN_CLOSING = "The details, warnings and confidence are on screen."
 
 MakeAgent = Callable[[Event], Agent]
+Transcriber = Callable[[bytes, str, str], str]
+
+
+def _plain(markdown: str) -> str:
+    """Markdown as text to read aloud: no tables, emphasis, headings or bullets; a minus on a number stays."""
+    text = re.sub(r"(?m)^\s*\|.*$", " ", markdown)
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"(?m)^\s*(?:[-*+]|\d+\.)\s+", "", text)
+    text = re.sub(r"[*_`#>]", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _cap(text: str, max_chars: int = SPOKEN_CHARS) -> str:
+    """The whole sentences that fit in max_chars; a first sentence longer than that is cut."""
+    out = ""
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        if len(out) + len(sentence) + 1 > max_chars:
+            break
+        out += f"{sentence} "
+    return out.strip() or text[:max_chars]
+
+
+def spoken_text(turn: dict) -> str:
+    """What the Listen button reads: a report's Verdict plus a pointer to the screen, else the capped answer text."""
+    report = turn.get("report")
+    verdict = next((s for s in report["sections"] if s["id"] == VERDICT), None) if report else None
+    if verdict:
+        return f"{_plain(verdict['markdown'])} {SPOKEN_CLOSING}"
+    return _cap(_plain(turn.get("display_text") or ""))
 
 
 def default_make_agent(on_event: Event) -> Agent:
@@ -43,9 +83,10 @@ def _ignore(kind: str, data: dict) -> None:
 
 class ChatBackend:
     def __init__(self, store: SessionStore, make_agent: MakeAgent = default_make_agent,
-                 user_id: str = USER_ID) -> None:
+                 user_id: str = USER_ID, transcriber: Transcriber = llm.transcribe) -> None:
         self._store = store
         self._make_agent = make_agent
+        self._transcriber = transcriber
         self._user_id = user_id
         self._ids = itertools.count(1)
         self._conv_ids: list[str] = []
@@ -79,6 +120,18 @@ class ChatBackend:
         except llm.ConfigError:
             # Fixed text: the exception message is never shown, so nothing from the environment reaches the page.
             return _not_answered("ConfigError", SETUP_TEXT)
+
+    def transcribe(self, audio: bytes, mime_type: str) -> dict:
+        """{"text": question} from a recording, or {"error", "display_text"}; the question is then asked as typed."""
+        try:
+            text = self._transcriber(audio, mime_type, VOICE_HINT).strip()
+        except llm.ConfigError:
+            return {"error": "ConfigError", "display_text": SETUP_TEXT}
+        except llm.RateLimitError as e:
+            return {"error": "RateLimitError", "display_text": str(e)}
+        except llm.ModelError:
+            return {"error": "ModelError", "display_text": VOICE_FAILED_TEXT}
+        return {"text": text} if text else {"error": "not_heard", "display_text": NOT_HEARD_TEXT}
 
     @staticmethod
     def data_window() -> str:
