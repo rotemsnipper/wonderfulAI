@@ -2,18 +2,25 @@ import json
 import re
 from pathlib import Path
 
+import yaml
+
 from backend.agent.prompt import PROMPTS_DIR, build_system_prompt, data_block
 from backend.evals.graders import load_cases
 
 FIXTURE_MANIFEST = Path(__file__).resolve().parents[1] / "fixtures" / "serving" / "manifest.json"
+FIXTURE_SETTINGS = FIXTURE_MANIFEST.with_name("settings.yaml")
 
 
 def manifest():
     return json.loads(FIXTURE_MANIFEST.read_text())
 
 
+def settings():
+    return yaml.safe_load(FIXTURE_SETTINGS.read_text())
+
+
 def test_loader_appends_data_block_from_fixture_manifest():
-    prompt = build_system_prompt(manifest())
+    prompt = build_system_prompt(manifest(), settings())
     assert prompt.startswith("You are an airport investment analyst assistant.")
     assert "# Knowledge" in prompt
     assert "Current window: 2025-08..2026-07" in prompt
@@ -43,3 +50,19 @@ def test_examples_contain_no_copyable_figures():
     text = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
     examples = text.split("## Examples", 1)[1]
     assert not re.search(r"\d+(\.\d+)?\s?%", examples)
+
+
+def test_scoring_rules_are_generated_from_settings():
+    s = settings()
+    s["label"] = {**s["label"], "high_min": 72}
+    prompt = build_system_prompt(manifest(), s)
+    assert "## Scoring rules (generated from the settings)" in prompt
+    assert "high at a score of 72 or more" in prompt
+    assert "proxy for profit" in prompt
+
+
+def test_static_prompts_hold_no_weights_or_thresholds():
+    for name in ("system.md", "knowledge.md"):
+        text = (PROMPTS_DIR / name).read_text(encoding="utf-8")
+        assert not re.search(r"(25|40|50|65|70)(%|th| or more)", text), name
+        assert "three components" not in text

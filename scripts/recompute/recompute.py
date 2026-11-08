@@ -95,6 +95,28 @@ expected["q4"]["SFO"] = {
 }
 
 
+# Q1: New England departures growth (flight side of the score)
+BASELINE_YEAR = 2019
+PRIOR = (202408, 202507)
+YEARS = 79 / 12  # 2019-12 to 2026-07
+NEW_ENGLAND = ("US-CT", "US-ME", "US-MA", "US-NH", "US-RI", "US-VT")
+region = oa[(oa["iso_country"] == "US") & (oa["scheduled_service"] == "yes")].drop_duplicates("iata_code").set_index("iata_code")["iso_region"]
+deps = t.groupby(["origin_airport_code", "ym"])["total_departures"].sum().reset_index()
+expected["q1"] = {}
+for code in sorted(c for c in universe if region.get(c) in NEW_ENGLAND):
+    rows = deps[deps["origin_airport_code"] == code]
+    cur = rows.loc[in_window(rows["ym"]), "total_departures"].sum()
+    prior = rows.loc[rows["ym"].between(*PRIOR), "total_departures"].sum()
+    base = rows.loc[rows["ym"] // 100 == BASELINE_YEAR, "total_departures"].sum()
+    expected["q1"][code] = {
+        "departures_compound_growth_pct_per_year": {
+            "value": 100 * ((cur / base) ** (1 / YEARS) - 1) if base else None,
+            "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"},
+        "departures_vs_prior_pct": {"value": 100 * (cur / prior - 1) if prior else None,
+                                    "formula": "departures in window / prior 12 months - 1"},
+    }
+
+
 def plain(obj):
     if isinstance(obj, dict):
         return {k: plain(v) for k, v in obj.items()}

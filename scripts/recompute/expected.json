@@ -114,5 +114,87 @@
         "formula": "cause count / sum of cause counts"
       }
     }
+  },
+  "q1": {
+    "BDL": {
+      "departures_compound_growth_pct_per_year": {
+        "value": -2.061010098771643,
+        "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"
+      },
+      "departures_vs_prior_pct": {
+        "value": -4.485993035731095,
+        "formula": "departures in window / prior 12 months - 1"
+      }
+    },
+    "BGR": {
+      "departures_compound_growth_pct_per_year": {
+        "value": 1.6938602806143566,
+        "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"
+      },
+      "departures_vs_prior_pct": {
+        "value": 11.48872679045092,
+        "formula": "departures in window / prior 12 months - 1"
+      }
+    },
+    "BOS": {
+      "departures_compound_growth_pct_per_year": {
+        "value": -0.6188426269738145,
+        "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"
+      },
+      "departures_vs_prior_pct": {
+        "value": -2.292973973871004,
+        "formula": "departures in window / prior 12 months - 1"
+      }
+    },
+    "BTV": {
+      "departures_compound_growth_pct_per_year": {
+        "value": -2.742219394714618,
+        "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"
+      },
+      "departures_vs_prior_pct": {
+        "value": -1.93189579471168,
+        "formula": "departures in window / prior 12 months - 1"
+      }
+    },
+    "HVN": {
+      "departures_compound_growth_pct_per_year": {
+        "value": 28.36476850007483,
+        "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"
+      },
+      "departures_vs_prior_pct": {
+        "value": 1.387900355871885,
+        "formula": "departures in window / prior 12 months - 1"
+      }
+    },
+    "MHT": {
+      "departures_compound_growth_pct_per_year": {
+        "value": -2.464301837999061,
+        "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"
+      },
+      "departures_vs_prior_pct": {
+        "value": 1.4066865786684701,
+        "formula": "departures in window / prior 12 months - 1"
+      }
+    },
+    "PVD": {
+      "departures_compound_growth_pct_per_year": {
+        "value": 0.31963057672335093,
+        "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"
+      },
+      "departures_vs_prior_pct": {
+        "value": -1.7733990147783207,
+        "formula": "departures in window / prior 12 months - 1"
+      }
+    },
+    "PWM": {
+      "departures_compound_growth_pct_per_year": {
+        "value": -0.9619761170614693,
+        "formula": "(departures in window / departures in 2019) ** (12 / 79) - 1"
+      },
+      "departures_vs_prior_pct": {
+        "value": 0.7670569236980285,
+        "formula": "departures in window / prior 12 months - 1"
+      }
+    }
   }
 }

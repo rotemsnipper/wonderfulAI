@@ -155,8 +155,8 @@ def default_agent() -> Agent:
         from backend.tools import tools
         from backend.tools.specs import TOOL_SPECS
 
-        manifest = tools.ctx().store.manifest
-        _default = Agent(system=build_system_prompt(manifest), tool_specs=TOOL_SPECS, call_tool=tools.call)
+        store = tools.ctx().store
+        _default = Agent(system=build_system_prompt(store.manifest, store.settings), tool_specs=TOOL_SPECS, call_tool=tools.call)
     return _default
 
 

@@ -1,31 +1,44 @@
-"""Expansion score: national rank percentiles of three components, weighted by versioned config.
+"""Capacity-need score: national rank percentiles of four components on two sides, weighted by versioned config.
 
-Components (higher means more pressure to expand):
-- growth: compound annual passenger growth from the baseline year, percent per year
-- load_factor: passengers / seats in the current window
-- congestion: arrival system-delay (NAS) rate in the current window, percent
+Components (higher means more need for added capacity):
+- passenger side
+  - passenger_growth: compound annual passenger growth from the baseline year, percent per year
+  - load_factor: passengers / seats in the current window
+- flight side
+  - flight_growth: compound annual departures growth from the baseline year, percent per year
+  - congestion: arrival system-delay (NAS) rate in the current window, percent
 
-An airport missing any component gets no total score; its available components are re-weighted
-into a labeled partial score. Missing values are never imputed.
+Each side score is the weighted mean of its two percentiles and needs both of them. An airport missing
+any component gets no total score; its available components are re-weighted into a labeled partial
+score. Missing values are never imputed.
 """
 from backend.scoring import formulas as f
 from backend.scoring import metrics
 from backend.tools.store import Store
 
-COMPONENTS = ("growth", "load_factor", "congestion")
+SIDES = {"passenger": ("passenger_growth", "load_factor"), "flight": ("flight_growth", "congestion")}
+COMPONENTS = SIDES["passenger"] + SIDES["flight"]
 
 
 def raw_components(store: Store, code: str) -> dict[str, float | None]:
     t = metrics.window_totals(store, code)
+    g = metrics.growth(store, code)
     return {
-        "growth": metrics.growth(store, code)["compound_growth_pct_per_year"],
+        "passenger_growth": g["compound_growth_pct_per_year"],
         "load_factor": f.load_factor(t["passengers"], t["seats"]),
+        "flight_growth": g["departures_compound_growth_pct_per_year"],
         "congestion": metrics.system_delay_rate(t),
     }
 
 
 def universe_codes(store: Store) -> list[str]:
     return sorted(store.airports.loc[store.airports["in_universe"].astype(bool), "code"])
+
+
+def side_score(pct: dict, weights: dict, side: str) -> float | None:
+    names = SIDES[side]
+    w_sum = sum(weights[c] for c in names)
+    return f.weighted_score({c: pct[c] for c in names}, {c: weights[c] / w_sum for c in names})
 
 
 def _breakdown(code: str, raw: dict, pct: dict, weights: dict, version: str) -> dict:
@@ -63,6 +76,8 @@ def _breakdown(code: str, raw: dict, pct: dict, weights: dict, version: str) -> 
             for c in COMPONENTS
         ],
         "effective_weights": effective,
+        "passenger_score": side_score(pct, weights, "passenger"),
+        "flight_score": side_score(pct, weights, "flight"),
         "data_tier": tier,
         "score_version": version,
         "robustness": None,

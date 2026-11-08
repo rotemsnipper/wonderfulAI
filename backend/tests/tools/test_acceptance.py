@@ -43,6 +43,25 @@ def test_q1_new_england_ranking_is_usable():
     assert "HVN" in {x["code"] for x in r["result"]["not_ranked"]}
 
 
+def test_q1_new_england_departures_growth_matches(expected):
+    r = tools.call("rank_airports", {"region": "new_england"})
+    codes = [row["code"] for rows in r["result"]["groups"].values() for row in rows]
+    codes += [x["code"] for x in r["result"]["not_ranked"]]
+    assert set(codes) == set(expected["q1"])
+    for code in codes:
+        m = tools.call("airport_profile", {"code": code})["result"]["metrics"]
+        for key in ("departures_compound_growth_pct_per_year", "departures_vs_prior_pct"):
+            assert m[key] == pytest.approx(expected["q1"][code][key]["value"], abs=1e-3), (code, key)
+
+
+def test_q1_new_england_labels_never_rate_partial_data():
+    r = tools.call("rank_airports", {"region": "new_england"})
+    rows = [row for rows in r["result"]["groups"].values() for row in rows]
+    assert all(row["score"]["potential"] != "not scored" for row in rows)
+    hvn = tools.call("airport_profile", {"code": "HVN"})["result"]["score"]
+    assert hvn["potential"] == "not scored" and hvn["recommendation"].startswith("Not scored")
+
+
 def test_q2_names_resolve_and_figures_match(expected):
     codes = [resolved("LA"), resolved("Santa Ana")]
     assert codes == ["LAX", "SNA"]

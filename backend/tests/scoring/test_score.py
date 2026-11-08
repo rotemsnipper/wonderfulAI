@@ -70,3 +70,24 @@ def test_ranked_lists_only_full_scores_best_first(scores):
 
 def test_score_version_is_carried(scores, settings):
     assert all(b["score_version"] == settings["score_version"] for b in scores.values())
+
+
+@pytest.mark.parametrize("code,passenger,flight,total", [("DPX", 70.0, 70.556, 70.278), ("NRC", 65.0, 50.0, 57.5),
+                                                         ("SPB", 15.0, 5.556, 10.278)])
+def test_side_scores_match_fixture_hand_calculation(scores, code, passenger, flight, total):
+    b = scores[code]
+    assert b["passenger_score"] == pytest.approx(passenger, abs=0.001)
+    assert b["flight_score"] == pytest.approx(flight, abs=0.001)
+    assert b["total_score"] == pytest.approx(total, abs=0.001)
+
+
+def test_no_delay_airport_has_passenger_side_but_no_flight_side(scores):
+    b = scores["NHV"]
+    assert b["passenger_score"] == pytest.approx(30.0)
+    assert b["flight_score"] is None
+    fg = next(c for c in b["components"] if c["name"] == "flight_growth")
+    assert fg["percentile"] == pytest.approx(90.0)
+
+
+def test_four_components_in_config_order(scores, settings):
+    assert [c["name"] for c in scores["LAA"]["components"]] == list(settings["weights"])

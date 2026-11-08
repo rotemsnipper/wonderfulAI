@@ -40,6 +40,31 @@ Size tier (placeholder bands): LAA, BAY, PMW large; SAA, SPA, DPX medium; NRC, P
 - Compound growth from baseline: ratio 1.2 gives 2.808%/year; 1.15 gives 2.146%; 1.3333 gives 4.467%; 1.0476 gives 0.709%; 1.2222 gives 3.095%.
 - Zero seat gap is the normal case (11 of 12 airports); PME is the only positive one: 1,320,000 / 0.85 - 1,464,000 = 88,941.
 
+## Departures growth and the two-sided score (score version 0.2)
+Departures per month: current `dep_m`, prior `prior_dep_m`, baseline `base_dep_m` (see the spec). Compound departures growth uses the same 79 / 12 years as passengers. Percentiles rank the 11 universe airports (10 for congestion; NHV has no delay data), ties share the average rank. Side score = mean of its two percentiles (equal weights); total = mean of the four.
+
+| Code | Departures cur / base | Dep growth %/yr | Dep vs prior % | Pax growth pct | Load factor pct | Flight growth pct | Congestion pct | Passenger side | Flight side | Total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DPX | 1.2800 | 3.821 | +6.667 | 50.0 | 90.0 | 80.0 | 61.1 | 70.00 | 70.56 | 70.278 |
+| SMP | 1.2500 | 3.448 | +4.167 | 85.0 | 0.0 | 70.0 | 100.0 | 42.50 | 85.00 | 63.750 |
+| PME | 1.2222 | 3.095 | +10.000 | 70.0 | 100.0 | 60.0 | 22.2 | 85.00 | 41.11 | 63.056 |
+| LAA | 1.1579 | 2.252 | 0.000 | 50.0 | 80.0 | 50.0 | 61.1 | 65.00 | 55.56 | 60.278 |
+| NRC | 1.5500 | 6.884 | +24.000 | 100.0 | 30.0 | 100.0 | 0.0 | 65.00 | 50.00 | 57.500 |
+| SPA | 1.1000 | 1.458 | +4.762 | 85.0 | 40.0 | 40.0 | 61.1 | 62.50 | 50.56 | 56.528 |
+| BAY | 1.0000 | 0.000 | -3.226 | 0.0 | 70.0 | 20.0 | 88.9 | 35.00 | 54.44 | 44.722 |
+| PMW | 0.9600 | -0.618 | 0.000 | 30.0 | 50.0 | 10.0 | 61.1 | 40.00 | 35.56 | 37.778 |
+| SAA | 1.0750 | 1.105 | +2.381 | 20.0 | 60.0 | 30.0 | 33.3 | 40.00 | 31.67 | 35.833 |
+| SPB | 0.9000 | -1.588 | -5.263 | 10.0 | 20.0 | 0.0 | 11.1 | 15.00 | 5.56 | 10.278 |
+| NHV | 1.4000 | 5.244 | +9.375 | 50.0 | 10.0 | 90.0 | none | 30.00 | none | none (partial) |
+
+TNY (out of universe): departures flat, 0.000%/year.
+
+Expected labels with the placeholder thresholds (High 65, Medium 50, strength 70, weakness 40):
+- DPX: High potential, High confidence, "Prioritize for due diligence"; strengths load factor 90, flight growth 80; no weaknesses.
+- NRC: Medium potential, Medium confidence (cargo-heavy), "Monitor".
+- PME: Medium, High confidence, "Investigate further"; strengths load factor 100, passenger growth 70 (edge: exactly 70); weakness congestion 22.2.
+- BAY: Low, "Deprioritize". NHV: "Not scored", Low confidence.
+
 ## Long-haul share of departures (current window)
 | Airport | Cutoff | Passenger flights (F) | All flights (F+G+L+P) |
 |---|---|---|---|

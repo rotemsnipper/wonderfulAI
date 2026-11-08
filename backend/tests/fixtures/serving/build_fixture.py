@@ -39,11 +39,12 @@ for s in a.itertuples():
     for ym in cur_months + PRIOR + BASELINE:
         is_cur, is_prior = ym in cur_months, ym in PRIOR
         pax = s.pax_m if is_cur else (s.prior_pax_m if is_prior else s.base_pax_m)
+        dep = s.dep_m if is_cur else (s.prior_dep_m if is_prior else s.base_dep_m)
         has_delay = bool(s.has_delay) and (is_cur or is_prior)
         pick = lambda v: (v if has_delay else None)
         rows.append(dict(
             code=s.code, year=ym // 100, month=ym % 100, ym=ym,
-            departures=s.dep_m, passengers=pax, seats=s.seats_m, freight_lbs=s.freight_m,
+            departures=dep, passengers=pax, seats=s.seats_m, freight_lbs=s.freight_m,
             arr_flights=pick(s.arr_m), arr_del15=pick(s.del15_m), nas_ct=pick(s.nas_m), weather_ct=pick(s.weather_m),
             carrier_ct=pick(s.carrier_m), late_aircraft_ct=pick(s.late_m), security_ct=pick(s.security_m),
             arr_cancelled=pick(s.cancel_m), arr_delay_min=pick(s.delay_min_m),
@@ -76,7 +77,7 @@ manifest = dict(
     window=dict(current="2025-08..2026-07", prior="2024-08..2025-07", baseline_year=2019),
     row_counts=dict(airports=len(airports), airport_month=len(am), routes=len(rt)),
     checks=dict(duplicate_keys="pass", named_airports="n/a", reconciliation="n/a"),
-    build_date="2026-11-08", config_version="0.1-draft",
+    build_date="2026-11-08", config_version="0.2-draft",
 )
 
 for name, df in (("airports", airports), ("airport_month", am), ("routes", rt)):

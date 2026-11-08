@@ -70,13 +70,16 @@ def national_median_delay_rate(store: Store) -> float | None:
 
 
 def growth(store: Store, code: str) -> dict:
-    """Compound growth from the baseline year and last-year change, both in percent."""
+    """Compound growth from the baseline year and last-year change, both in percent, for passengers and
+    departures. Departures include cargo flights, so at cargo hubs flight growth can come from cargo."""
     cur, prior, base = (window_totals(store, code, w) for w in ("current", "prior", "baseline"))
+    years = store.years_since_baseline()
     return {
-        "compound_growth_pct_per_year": f.compound_growth_pct(cur["passengers"], base["passengers"],
-                                                              store.years_since_baseline()),
+        "compound_growth_pct_per_year": f.compound_growth_pct(cur["passengers"], base["passengers"], years),
         "baseline_year": store.baseline_year,
         "passengers_vs_prior_pct": f.growth_pct(cur["passengers"], prior["passengers"]),
+        "departures_compound_growth_pct_per_year": f.compound_growth_pct(cur["departures"], base["departures"], years),
+        "departures_vs_prior_pct": f.growth_pct(cur["departures"], prior["departures"]),
     }
 
 

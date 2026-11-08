@@ -21,9 +21,11 @@ TOOL_SPECS: list[dict] = [
     {
         "name": "rank_airports",
         "description": (
-            "Rank covered airports by expansion score (default) or by one metric, optionally within a region, a "
-            "state or a size tier. Use for 'which airports' questions. Results are grouped by size tier and "
-            "include a robustness verdict for score rankings. To compare named airports use compare_airports."
+            "Rank covered airports by capacity-need score (default) or by one metric, optionally within a region, "
+            "a state or a size tier. Use for 'which airports' questions. Score rows carry the passenger and flight "
+            "side scores, the label (potential, confidence, recommendation), strengths and weaknesses. Results are "
+            "grouped by size tier and include a robustness verdict for score rankings. To compare named airports "
+            "use compare_airports."
         ),
         "parameters": {
             "type": "object",
@@ -41,7 +43,7 @@ TOOL_SPECS: list[dict] = [
         "name": "compare_airports",
         "description": (
             f"Compare 2 to {MAX_COMPARE} airports side by side: traffic, load factor, growth, delays, departures per "
-            "usable runway and score, with differences and ratios already computed. Needs airport codes; resolve "
+            "usable runway and score with its label, with differences and ratios already computed. Needs airport codes; resolve "
             "names first."
         ),
         "parameters": {
@@ -53,7 +55,8 @@ TOOL_SPECS: list[dict] = [
     {
         "name": "airport_profile",
         "description": (
-            "One airport in depth: traffic, growth, delays and delay causes, score breakdown, long-haul share at "
+            "One airport in depth: traffic, growth, delays and delay causes, score breakdown with side scores and "
+            "label, long-haul share at "
             "several distance cutoffs (passenger flights and all flights), and unmet demand (seat gap, excess "
             "delayed flights). Use for long-haul and unmet-demand questions. Needs an airport code."
         ),

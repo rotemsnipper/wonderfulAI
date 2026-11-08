@@ -1,3 +1,4 @@
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -94,6 +95,22 @@ def test_growth_from_baseline_and_last_year(store, code, compound, yoy):
     g = metrics.growth(store, code)
     assert g["compound_growth_pct_per_year"] == pytest.approx(compound, abs=0.002)
     assert g["passengers_vs_prior_pct"] == pytest.approx(yoy, abs=0.002)
+
+
+@pytest.mark.parametrize("code,compound,yoy", [("DPX", 3.821, 6.667), ("NRC", 6.884, 24.0), ("BAY", 0.0, -3.226),
+                                               ("SPB", -1.588, -5.263)])
+def test_departures_growth_from_baseline_and_last_year(store, code, compound, yoy):
+    g = metrics.growth(store, code)
+    assert g["departures_compound_growth_pct_per_year"] == pytest.approx(compound, abs=0.002)
+    assert g["departures_vs_prior_pct"] == pytest.approx(yoy, abs=0.002)
+
+
+def test_departures_growth_unknown_without_baseline_departures(store):
+    am = store.airport_month.copy()
+    am.loc[(am["code"] == "DPX") & (am["year"] == store.baseline_year), "departures"] = None
+    g = metrics.growth(dataclasses.replace(store, airport_month=am), "DPX")
+    assert g["departures_compound_growth_pct_per_year"] is None
+    assert g["compound_growth_pct_per_year"] is not None
 
 
 def _types(ws):

@@ -198,3 +198,54 @@ def test_assumption_text_comes_from_config():
     s = load_settings()
     assert f"{s['load_factor_ceiling']:.0%}" in defs["seat_gap"]["definition"]
     assert f"{s['usable_runway_min_ft']:,}" in defs["departures_per_usable_runway"]["definition"]
+
+
+def test_profile_full_airport_has_side_scores_and_label():
+    s = tools.call("airport_profile", {"code": "DPX"})["result"]["score"]
+    assert s["passenger_score"] == 70.0 and s["flight_score"] == 70.6
+    assert s["potential"] == "high" and s["confidence"] == "high"
+    assert s["recommendation"] == "Prioritize for due diligence"
+    assert [x["component"] for x in s["strengths"]] == ["load_factor", "flight_growth"]
+    assert s["weaknesses"] == []
+
+
+def test_profile_partial_airport_is_not_scored_and_low_confidence():
+    r = tools.call("airport_profile", {"code": "NHV"})
+    s = r["result"]["score"]
+    assert s["potential"] == "not scored" and s["confidence"] == "low"
+    assert s["passenger_score"] == 30.0 and s["flight_score"] is None
+    assert r["data_quality"]["NHV"]["confidence"] == "low"
+
+
+def test_cargo_heavy_airport_gets_medium_confidence_and_monitor():
+    r = tools.call("airport_profile", {"code": "NRC"})
+    s = r["result"]["score"]
+    assert s["confidence"] == "medium" and s["recommendation"] == "Monitor"
+    assert r["data_quality"]["NRC"]["confidence"] == "medium"
+
+
+def test_rank_rows_carry_label_and_compare_too():
+    rows = [row for rows in tools.call("rank_airports", {})["result"]["groups"].values() for row in rows]
+    assert all("recommendation" in row["score"] for row in rows)
+    airports = tools.call("compare_airports", {"codes": ["DPX", "NHV"]})["result"]["airports"]
+    assert [a["score"]["potential"] for a in airports] == ["high", "not scored"]
+
+
+def test_rank_by_flight_growth():
+    r = tools.call("rank_airports", {"metric": "flight_growth"})
+    assert_envelope(r)
+    rows = [row for rows in r["result"]["groups"].values() for row in rows]
+    nrc = next(row for row in rows if row["code"] == "NRC")
+    assert nrc["display"] == "+6.9%"
+    assert any(d["name"] == "departures_compound_growth_pct_per_year" and "cargo" in d["definition"]
+               for d in r["definitions"])
+    assert "growth" not in tools.RANK_METRICS
+
+
+def test_score_definition_uses_configured_weights_and_thresholds():
+    r = tools.call("rank_airports", {})
+    text = next(d for d in r["definitions"] if d["name"] == "total_score")["definition"]
+    s = load_settings()
+    assert f"high at {s['label']['high_min']} or more" in text
+    assert f"passenger growth {s['weights']['passenger_growth']:.0%}" in text
+    assert "proxy for profit" in text

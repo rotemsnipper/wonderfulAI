@@ -9,7 +9,7 @@ import logging
 from functools import cached_property
 
 from backend.config import SERVING_DIR
-from backend.scoring import formulas, metrics
+from backend.scoring import formulas, label, metrics
 from backend.scoring.robustness import robustness
 from backend.scoring.score import score_all
 from backend.scoring.warnings import airport_warnings, sort_warnings
@@ -22,8 +22,9 @@ log = logging.getLogger(__name__)
 REGIONS = {
     "new_england": ["CT", "ME", "MA", "NH", "RI", "VT"],
 }
-RANK_METRICS = ["score", "growth", "load_factor", "congestion", "delay_rate", "passengers"]
+RANK_METRICS = ["score", "passenger_growth", "flight_growth", "load_factor", "congestion", "delay_rate", "passengers"]
 PER_GROUP_CAP = 10
+GROWTH_SINCE_BASELINE = {"compound_growth_pct_per_year", "departures_compound_growth_pct_per_year"}
 TOTAL_CAP = 30
 MAX_COMPARE = 5
 NOT_AVAILABLE = ("costs, ROI or construction prices; routes between two cities; gate or terminal floor area; "
@@ -94,36 +95,36 @@ class Context:
         catalog = {
             "passengers": ("passengers", "count", "passengers boarding at the airport in the 12-month window, all carriers, domestic plus international", "BTS T-100", None),
             "load_factor": ("load factor", "%", "passengers divided by seats in the window", "BTS T-100", None),
-            "compound_growth_pct_per_year": ("growth", "% a year", f"compound annual passenger growth from {self.store.baseline_year} to the current window", "BTS T-100", None),
+            "compound_growth_pct_per_year": ("passenger growth", "% a year", f"compound annual passenger growth from {self.store.baseline_year} to the current window", "BTS T-100", None),
             "passengers_vs_prior_pct": ("change vs prior year", "%", "passengers in the window vs the 12 months before", "BTS T-100", None),
+            "departures_compound_growth_pct_per_year": ("flight growth", "% a year", f"compound annual departures growth from {self.store.baseline_year} to the current window; departures include cargo flights, so at cargo hubs part of the growth can be cargo", "BTS T-100", None),
+            "departures_vs_prior_pct": ("departures change vs prior year", "%", "departures in the window vs the 12 months before", "BTS T-100", None),
             "delay_rate_pct": ("delay rate", "%", "share of arriving flights 15+ minutes late", "BTS delay causes", None),
             "system_delay_rate_pct": ("system delay rate", "%", "share of arriving flights delayed by the national aviation system (mostly congestion, includes ordinary weather)", "BTS delay causes", "system delays are mostly, not purely, congestion"),
             "cancel_rate_pct": ("cancellation rate", "%", "cancelled arrivals divided by scheduled arrivals", "BTS delay causes", None),
             "departures_per_usable_runway": ("departures per usable runway", "departures", f"departures in the window divided by open runways of at least {s['usable_runway_min_ft']:,} ft", "BTS T-100, OurAirports", None),
-            "total_score": ("expansion score", "0-100", f"weighted rank percentiles of growth ({s['weights']['growth']:.0%}), load factor ({s['weights']['load_factor']:.0%}) and congestion ({s['weights']['congestion']:.0%}) across covered airports; relative, not a financial return", "computed", None),
+            "total_score": ("capacity-need score", "0-100", label.score_definition(s), "computed", "proxy for profit, not a financial return"),
             "long_haul_share": ("long-haul share", "%", "share of departures at or above the cutoff distance; headline counts scheduled passenger flights (class F), the all-flights share includes cargo and charter", "BTS T-100 segment", None),
             "seat_gap": ("seat gap", "seats", f"extra seats a year needed to bring the load factor down to {s['load_factor_ceiling']:.0%}", "BTS T-100", "lower bound of unmet demand"),
             "excess_delayed_flights": ("excess delayed flights", "flights", "delayed arrivals above the national median delay rate", "BTS delay causes", "lower bound of congestion-related unmet demand"),
         }
         out = []
         for n in names:
-            label, unit, text, source, proxy = catalog[n]
-            period = str(self.store.baseline_year) + " to " + cur if n == "compound_growth_pct_per_year" else cur
-            out.append(Definition(name=n, label=label, unit=unit, definition=text, source=source, period=period, proxy_note=proxy))
+            name_label, unit, text, source, proxy = catalog[n]
+            period = str(self.store.baseline_year) + " to " + cur if n in GROWTH_SINCE_BASELINE else cur
+            out.append(Definition(name=n, label=name_label, unit=unit, definition=text, source=source, period=period, proxy_note=proxy))
         return out
 
     def quality(self, code: str, warnings: list[dict]) -> DataQuality:
-        if code not in self.scores:
-            return DataQuality(tier="thin", confidence="low", reason="below the covered-airport threshold; no score")
-        tier = self.scores[code]["data_tier"]
-        types = {w["type"]: w["severity"] for w in warnings if w["airport"] == code}
-        if tier != "full" or "partial_data" in types:
-            missing = (self.scores[code]["partial_scores"] or {}).get("components_missing", [])
-            reason = f"missing {', '.join(missing)}" if missing else "thin or partial data"
-            return DataQuality(tier="partial" if tier != "full" else "thin", confidence="low", reason=reason)
-        if types:
-            return DataQuality(tier="full", confidence="medium", reason=", ".join(sorted(types)))
-        return DataQuality(tier="full", confidence="high", reason="all components present")
+        b = self.scores.get(code)
+        level, reason = label.confidence(b, warnings)
+        if b is None:
+            tier = "thin"
+        elif b["data_tier"] != "full":
+            tier = "partial"
+        else:
+            tier = "thin" if level == "low" else "full"
+        return DataQuality(tier=tier, confidence=level, reason=reason)
 
 
 _ctx: Context | None = None
@@ -178,12 +179,17 @@ def _score_block(c: Context, code: str) -> dict:
     comps = {x["name"]: {"raw": _r(x["raw_value"]), "percentile": _r(x["percentile"], 1),
                          "contribution": _r(x["contribution"], 1)} for x in b["components"]}
     partial = b["partial_scores"]
+    lab = label.label(b, airport_warnings(c.store, code, c.settings), c.settings)
     return {
         "total_score": _r(b["total_score"], 1), "display": fmt("score", b["total_score"]),
         "partial_score": _r(partial["score"], 1) if partial else None,
         "partial_label": partial["label"] if partial else None,
+        "passenger_score": _r(b["passenger_score"], 1), "flight_score": _r(b["flight_score"], 1),
         "components": comps, "effective_weights": {k: _r(v, 3) for k, v in b["effective_weights"].items()},
         "data_tier": b["data_tier"],
+        "potential": lab["potential"], "confidence": lab["confidence"], "recommendation": lab["recommendation"],
+        "strengths": [{**x, "percentile": _r(x["percentile"], 1)} for x in lab["strengths"]],
+        "weaknesses": [{**x, "percentile": _r(x["percentile"], 1)} for x in lab["weaknesses"]],
     }
 
 
@@ -197,6 +203,8 @@ def _metrics_block(c: Context, code: str) -> dict:
         "load_factor": formulas.load_factor(t["passengers"], t["seats"]),
         "compound_growth_pct_per_year": g["compound_growth_pct_per_year"],
         "passengers_vs_prior_pct": g["passengers_vs_prior_pct"],
+        "departures_compound_growth_pct_per_year": g["departures_compound_growth_pct_per_year"],
+        "departures_vs_prior_pct": g["departures_vs_prior_pct"],
         "delay_rate_pct": k["delay_rate_pct"], "system_delay_rate_pct": k["system_delay_rate_pct"],
         "cancel_rate_pct": k["cancel_rate_pct"], "departures_per_usable_runway": k["departures_per_usable_runway"],
         "arrivals": k["arrivals"],
@@ -211,7 +219,8 @@ def _metrics_block(c: Context, code: str) -> dict:
 
 METRIC_KINDS = {
     "passengers": "count", "seats": "count", "departures": "count", "arrivals": "count", "load_factor": "fraction_pct",
-    "compound_growth_pct_per_year": "signed_pct", "passengers_vs_prior_pct": "signed_pct", "delay_rate_pct": "pct",
+    "compound_growth_pct_per_year": "signed_pct", "passengers_vs_prior_pct": "signed_pct",
+    "departures_compound_growth_pct_per_year": "signed_pct", "departures_vs_prior_pct": "signed_pct", "delay_rate_pct": "pct",
     "system_delay_rate_pct": "pct", "cancel_rate_pct": "pct", "departures_per_usable_runway": "count",
     "total_score": "score",
 }
@@ -275,7 +284,8 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
         return error_result("no covered airports match these filters", [])
 
     mblocks = {x: _metrics_block(c, x) for x in pool}
-    key_name = {"score": "total_score", "growth": "compound_growth_pct_per_year", "load_factor": "load_factor",
+    key_name = {"score": "total_score", "passenger_growth": "compound_growth_pct_per_year",
+                "flight_growth": "departures_compound_growth_pct_per_year", "load_factor": "load_factor",
                 "congestion": "system_delay_rate_pct", "delay_rate": "delay_rate_pct", "passengers": "passengers"}[metric]
 
     def value(x):
@@ -322,12 +332,14 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
                             for x, v in rb["per_airport"].items() if x in shown_codes},
         }
     codes = shown_codes + unranked
-    defs = ["total_score", "compound_growth_pct_per_year", "load_factor", "system_delay_rate_pct"] if metric == "score" else [key_name]
+    defs = (["total_score", "compound_growth_pct_per_year", "load_factor", "departures_compound_growth_pct_per_year",
+             "system_delay_rate_pct"] if metric == "score" else [key_name])
     return _envelope("rank_airports", {"region": region, "state": state, "size_tier": size_tier, "metric": metric, "limit": limit},
                      result, codes, defs)
 
 
 COMPARE_METRICS = ["passengers", "load_factor", "compound_growth_pct_per_year", "passengers_vs_prior_pct",
+                   "departures_compound_growth_pct_per_year",
                    "delay_rate_pct", "system_delay_rate_pct", "cancel_rate_pct", "departures_per_usable_runway"]
 TOTALS = {"passengers", "departures_per_usable_runway"}
 
@@ -371,7 +383,8 @@ def compare_airports(codes: list[str]) -> dict:
               "size_tiers_differ": len(tiers) > 1}
     return _envelope("compare_airports", {"codes": checked}, result, checked,
                      ["delay_rate_pct", "system_delay_rate_pct", "cancel_rate_pct", "departures_per_usable_runway",
-                      "load_factor", "compound_growth_pct_per_year", "passengers_vs_prior_pct", "passengers", "total_score"],
+                      "load_factor", "compound_growth_pct_per_year", "passengers_vs_prior_pct",
+                      "departures_compound_growth_pct_per_year", "passengers", "total_score"],
                      notes=notes)
 
 
@@ -416,7 +429,8 @@ def airport_profile(code: str, long_haul_cutoff_mi: int | None = None) -> dict:
               "delay_note": block["delay_note"],
               "score": _score_block(c, code), "long_haul": long_haul, "unmet_demand": unmet}
     return _envelope("airport_profile", {"code": code, "long_haul_cutoff_mi": long_haul_cutoff_mi}, result, [code],
-                     ["passengers", "load_factor", "compound_growth_pct_per_year", "delay_rate_pct", "system_delay_rate_pct",
+                     ["passengers", "load_factor", "compound_growth_pct_per_year", "departures_compound_growth_pct_per_year",
+                      "delay_rate_pct", "system_delay_rate_pct",
                       "departures_per_usable_runway", "long_haul_share", "seat_gap", "excess_delayed_flights", "total_score"],
                      long_haul=True, proxy=True)
 

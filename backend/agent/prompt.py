@@ -1,7 +1,8 @@
-"""Load the static system prompt and knowledge file, and append a small block generated from the manifest."""
+"""Load the static system prompt and knowledge file, and append blocks generated from the settings and the manifest."""
 from pathlib import Path
 
 from backend.config import REPO_ROOT
+from backend.scoring.label import scoring_text
 
 PROMPTS_DIR = REPO_ROOT / "prompts"
 SOURCE_LABELS = {
@@ -30,7 +31,8 @@ def data_block(manifest: dict) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(manifest: dict, prompts_dir: Path = PROMPTS_DIR) -> str:
+def build_system_prompt(manifest: dict, settings: dict, prompts_dir: Path = PROMPTS_DIR) -> str:
+    """Weights and label thresholds come only from `settings` (the serving folder's copy), never the static files."""
     system = (prompts_dir / "system.md").read_text(encoding="utf-8").strip()
     knowledge = (prompts_dir / "knowledge.md").read_text(encoding="utf-8").strip()
-    return f"{system}\n\n# Knowledge\n{knowledge}\n\n{data_block(manifest)}\n"
+    return f"{system}\n\n# Knowledge\n{knowledge}\n\n{scoring_text(settings)}\n\n{data_block(manifest)}\n"

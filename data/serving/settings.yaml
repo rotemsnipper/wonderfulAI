@@ -1,4 +1,4 @@
-score_version: 0.1-draft
+score_version: 0.2-draft
 window_months: 12
 baseline_year: 2019
 universe_min_passengers_12m: 250000
@@ -14,9 +14,15 @@ long_haul_cutoffs:
 - 3000
 long_haul_default: 3000
 weights:
-  growth: 0.4
-  load_factor: 0.35
+  passenger_growth: 0.25
+  load_factor: 0.25
+  flight_growth: 0.25
   congestion: 0.25
+label:
+  high_min: 65
+  medium_min: 50
+  strength_min: 70
+  weakness_max: 40
 robustness:
   draws: 500
   seed: 42
