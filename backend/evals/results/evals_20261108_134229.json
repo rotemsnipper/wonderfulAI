@@ -1,0 +1,36 @@
+[
+  {
+    "case_id": "q2_lax_sna",
+    "passed": true,
+    "checks": {
+      "airports": [
+        true,
+        "found ['LAX', 'SNA']; need 2 of ['LAX', 'SNA']"
+      ],
+      "per_turn_airports": [
+        true,
+        "n/a"
+      ],
+      "required": [
+        true,
+        "all required content present"
+      ],
+      "forbidden": [
+        true,
+        "no forbidden content"
+      ],
+      "number_check": [
+        true,
+        "number check passed"
+      ],
+      "footer": [
+        true,
+        "confidence high"
+      ],
+      "figures": [
+        true,
+        "all figures present"
+      ]
+    }
+  }
+]
