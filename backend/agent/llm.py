@@ -20,7 +20,9 @@ from google.genai import errors, types
 log = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-3.8-flash"
-MAX_OUTPUT_TOKENS = 8192  # thinking tokens count against this cap, so it must leave room for them
+# Thinking tokens count against the output cap; a fixed budget keeps the cap minus the budget free for the answer.
+THINKING_BUDGET = 8192
+MAX_OUTPUT_TOKENS = 16384
 RETRY_DELAY_S = 5.0
 REFUSAL_REASONS = {"SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "LANGUAGE"}
 
@@ -167,6 +169,7 @@ def complete(messages: list[dict], system: str, tool_specs: list[dict] | None = 
         tools=tools or None,
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         max_output_tokens=max_output_tokens,
+        thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET),
     )
     return from_response(_generate(client, model, to_contents(messages), config), model)
 

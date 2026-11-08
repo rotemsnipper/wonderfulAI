@@ -93,7 +93,9 @@ def test_max_token_stop_reports_thinking_tokens_and_leaves_room_for_them(fake):
     client = fake(resp)
     r = llm.complete([{"role": "user", "content": "x"}], "s")
     assert r.stop_reason == "max_tokens" and r.text == "LAX handled 36" and r.thinking_tokens == 1900
-    assert client.models.calls[0]["config"].max_output_tokens >= 8192
+    config = client.models.calls[0]["config"]
+    assert config.thinking_config.thinking_budget == 8192
+    assert config.max_output_tokens - config.thinking_config.thinking_budget >= 8192
 
 
 def test_messages_and_specs_are_translated(fake):
