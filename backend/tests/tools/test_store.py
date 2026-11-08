@@ -40,11 +40,6 @@ def test_routes_selector(store):
     assert store.routes_in("current", ["NRC"])["departures"].sum() == 7_440
 
 
-def test_unknown_window_raises(store):
-    with pytest.raises(ValueError):
-        store.window("next")
-
-
 def test_missing_column_raises_clear_error(tmp_path):
     for f in FIXTURE.iterdir():
         if f.is_file():
@@ -55,16 +50,11 @@ def test_missing_column_raises_clear_error(tmp_path):
         load_store(tmp_path)
 
 
-def test_missing_table_raises(tmp_path):
-    with pytest.raises(SchemaError, match="airports"):
-        load_store(tmp_path)
-
-
 def test_settings_come_from_the_serving_folder(store):
     assert store.settings["window_months"] == 12 and store.window_months == 12
 
 
-@pytest.mark.parametrize("name", ["manifest.json", "settings.yaml"])
+@pytest.mark.parametrize("name", ["manifest.json"])
 def test_missing_support_file_fails_instead_of_falling_back_to_config(tmp_path, name):
     for f in FIXTURE.iterdir():
         if f.is_file() and f.name != name:

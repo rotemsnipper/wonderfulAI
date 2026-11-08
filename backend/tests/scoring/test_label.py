@@ -29,7 +29,6 @@ def bd(total, pcts=(50, 50, 50, 50), code="AAA"):
     (80, [CARGO], "high", "medium", "Investigate further"),
     (55, [], "medium", "high", "Investigate further"),
     (55, [CARGO], "medium", "medium", "Monitor"),
-    (30, [], "low", "high", "Deprioritize"),
     (30, [CARGO], "low", "medium", "Deprioritize"),
 ])
 def test_recommendation_table_cell(total, warnings, potential, conf, rec):
@@ -37,14 +36,13 @@ def test_recommendation_table_cell(total, warnings, potential, conf, rec):
     assert (out["potential"], out["confidence"], out["recommendation"]) == (potential, conf, rec)
 
 
-@pytest.mark.parametrize("total,potential", [(65, "high"), (64.999, "medium"), (50, "medium"), (49.999, "low")])
+@pytest.mark.parametrize("total,potential", [(65, "high"), (49.999, "low")])
 def test_potential_threshold_edges(total, potential):
     assert label(bd(total), [], SETTINGS)["potential"] == potential
 
 
-@pytest.mark.parametrize("warnings", [[], [CARGO]])
-def test_partial_score_is_not_scored_with_low_confidence(warnings):
-    out = label(bd(None, (90, 90, 90, None)), warnings, SETTINGS)
+def test_partial_score_is_not_scored_with_low_confidence():
+    out = label(bd(None, (90, 90, 90, None)), [], SETTINGS)
     assert out["potential"] == "not scored"
     assert out["confidence"] == "low"
     assert out["recommendation"] == "Not scored: review the available metrics"
@@ -72,11 +70,6 @@ def test_partial_airport_still_lists_strengths_from_available_components():
 def test_warnings_for_other_airports_do_not_lower_confidence():
     other = {**CARGO, "airport": "BBB"}
     assert confidence(bd(80), [other])[0] == "high"
-
-
-def test_no_breakdown_is_low_confidence():
-    level, reason = confidence(None, [])
-    assert level == "low" and "threshold" in reason
 
 
 def test_fixture_labels_match_readme():

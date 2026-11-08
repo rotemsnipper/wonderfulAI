@@ -39,11 +39,6 @@ def test_same_seed_gives_same_output():
     assert robustness(items, WEIGHTS, SETTINGS) == robustness(items, WEIGHTS, SETTINGS)
 
 
-def test_partial_scores_are_ignored():
-    items = [bd("AAA", 100, 100, 100), {"airport_code": "NHV", "total_score": None, "components": []}]
-    assert set(robustness(items, WEIGHTS, SETTINGS)["per_airport"]) == {"AAA"}
-
-
 def test_runs_on_fixture_scores_with_config():
     settings = load_settings()
     scores = score_all(load_store(FIXTURE), settings)

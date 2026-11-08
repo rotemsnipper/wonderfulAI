@@ -1,5 +1,5 @@
 from backend.agent import llm
-from backend.agent.loop import ADVICE_LINE, CAP_PREFIX, NUMBER_CHECK_PREFIX, REFUSAL_TEXT, Agent
+from backend.agent.loop import ADVICE_LINE, CAP_PREFIX, NUMBER_CHECK_PREFIX, Agent
 from backend.agent.llm import ModelReply, ToolCall
 from backend.agent.session import InMemorySessionStore
 
@@ -9,7 +9,7 @@ RESULT = {
     "definitions": [], "warnings": [{"airport": "SFO", "type": "partial_data", "severity": "high", "message": "m"}],
     "data_quality": {"SFO": {"tier": "full", "confidence": "high", "reason": ""}}, "notes": [],
     "meta": {"airports": ["SFO"], "uses_proxy": True, "periods": {"t100_summary": "2025-08..2026-07"},
-             "score_version": "0.1", "resolved_by_default": False},
+             "score_version": "0.1"},
 }
 
 
@@ -128,27 +128,6 @@ def test_rate_limit_message_is_clear():
     agent, _ = make_agent(FakeModel(llm.RateLimitError("The model is rate limited right now; please try again in a minute.")))
     out = agent.run_turn(InMemorySessionStore(), "u", "c", "x")
     assert "rate limited" in out["display_text"] and out["saved"] is False
-
-
-def test_refusal_gives_fixed_text_and_na_confidence():
-    agent, _ = make_agent(FakeModel(text_reply("", stop="refusal")))
-    out = agent.run_turn(InMemorySessionStore(), "u", "c", "something unsafe")
-    assert out["display_text"] == REFUSAL_TEXT and out["footer"]["confidence"] == "n/a"
-
-
-def test_max_token_stop_asks_once_for_a_shorter_answer():
-    model = FakeModel(tool_reply(), text_reply("SFO has about 14,821 excess dela", stop="max_tokens"),
-                      text_reply("SFO has about 14,821 excess delayed flights."))
-    agent, _ = make_agent(model)
-    out = agent.run_turn(InMemorySessionStore(), "u", "c", "SFO?")
-    assert out["display_text"] == "SFO has about 14,821 excess delayed flights."
-    assert model.requests[-1]["tools"] is None
-
-
-def test_turn_always_ends_in_prose():
-    agent, _ = make_agent(FakeModel(text_reply("   ")))
-    out = agent.run_turn(InMemorySessionStore(), "u", "c", "x")
-    assert out["display_text"].strip() and out["model_messages"][-1]["role"] == "assistant"
 
 
 def test_advice_line_added_by_code_for_recommendations_with_data():

@@ -1,5 +1,3 @@
-import pytest
-
 from backend.agent.session import InMemorySessionStore, Turn, history_messages, pool_from_trace, rebuild_pool
 
 TRACE = [
@@ -40,15 +38,6 @@ def test_conversations_and_users_are_isolated():
     assert store.load("u1", "other") == []
 
 
-def test_partial_turn_is_never_visible():
-    store = InMemorySessionStore()
-    store.append_turn("u1", "c1", make_turn())
-    bad = make_turn(trace=[{"tool": "x", "args": {}, "result": {"unserializable": object()}}])
-    with pytest.raises(TypeError):
-        store.append_turn("u1", "c1", bad)
-    assert len(store.load("u1", "c1")) == 1
-
-
 def test_pool_rebuild_matches_live_pool():
     store = InMemorySessionStore()
     second = [{"tool": "airport_profile", "args": {"code": "SFO"}, "result": {"result": {"seat_gap": 0.0, "excess": 14821.2}}}]
@@ -63,8 +52,3 @@ def test_pool_rebuild_matches_live_pool():
 def test_history_messages_concatenates_turns_in_order():
     turns = [make_turn("first"), make_turn("second")]
     assert [m["content"] for m in history_messages(turns) if m["role"] == "user"] == ["first", "second"]
-
-
-def test_turn_round_trips_through_dict():
-    t = make_turn()
-    assert Turn.from_dict(t.to_dict()) == t

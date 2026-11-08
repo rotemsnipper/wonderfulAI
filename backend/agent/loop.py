@@ -22,11 +22,9 @@ log = logging.getLogger(__name__)
 ROUND_CAP = 7
 NUMBER_CHECK_PREFIX = "[number-check]"
 CAP_PREFIX = "[tool-limit]"
-SHORTEN_PREFIX = "[length-limit]"
 ADVICE_LINE = ("This is a data screen, not investment advice: confirm with site studies, airline demand and "
                "financial analysis before committing capital.")
 RECOMMENDATION = re.compile(r"(?i)\b(should|recommend|candidates?|worth|invest|expand|expansion|renovat)")
-REFUSAL_TEXT = "I can't help with that request. I can answer questions about US airport traffic, growth, delays and expansion signals."
 EMPTY_TEXT = "I could not produce an answer to that. Please try rephrasing the question."
 MODEL_ERROR_TEXT = "The model is not available right now, so this question was not answered. Please try again."
 
@@ -105,7 +103,6 @@ class Agent:
     def _rounds(self, ask, msgs: list[dict], trace: list[dict]) -> tuple[str, int, bool]:
         """Model calls with tool use for this turn. Returns (answer text, rounds used, whether capped)."""
         rounds = 0
-        shortened = False
         while rounds < self.round_cap:
             reply = ask()
             rounds += 1
@@ -119,15 +116,6 @@ class Agent:
                     trace.append({"tool": tc.name, "args": tc.args, "result": result})
                     msgs.append({"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": result})
                 continue
-            if reply.stop_reason == "refusal":
-                return REFUSAL_TEXT, rounds, False
-            if reply.stop_reason == "max_tokens" and not shortened:
-                shortened = True
-                short = ask([{"role": "assistant", "content": reply.text},
-                             {"role": "user", "content": f"{SHORTEN_PREFIX} That answer was cut off. Give the complete answer again in under 200 words."}],
-                            tools=False)
-                rounds += 1
-                return (short.text.strip() or reply.text.strip() or EMPTY_TEXT), rounds, False
             return (reply.text.strip() or EMPTY_TEXT), rounds, False
         forced = ask([{"role": "user", "content": (
             f"{CAP_PREFIX} The tool-call limit for this question was reached. Answer now without tools, using only "

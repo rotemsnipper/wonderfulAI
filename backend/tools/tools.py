@@ -249,7 +249,7 @@ def resolve_airport(query: str) -> dict:
     r = c.resolver.resolve(query)
     codes = [x["code"] for x in r["candidates"]]
     return Envelope(tool="resolve_airport", inputs={"query": query}, result=r,
-                    meta=Meta(airports=codes, resolved_by_default=bool(r.get("resolved_by_default")))).to_dict()
+                    meta=Meta(airports=codes)).to_dict()
 
 
 def rank_airports(region: str | None = None, state: str | None = None, size_tier: str | None = None,

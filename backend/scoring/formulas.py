@@ -61,7 +61,7 @@ def long_haul_share(
     return longhaul / total * 100
 
 
-def percentile_ranks(values: Mapping[str, float | None], higher_is_better: bool = True) -> dict[str, float | None]:
+def percentile_ranks(values: Mapping[str, float | None]) -> dict[str, float | None]:
     """Rank percentile 0..100 for each key; ties share the average rank; missing values stay None.
 
     Percentile = (rank - 1) / (n - 1) * 100 over the n non-missing values, where rank 1 is the worst.
@@ -72,7 +72,7 @@ def percentile_ranks(values: Mapping[str, float | None], higher_is_better: bool 
     n = len(present)
     if n == 0:
         return out
-    ordered = sorted(present.items(), key=lambda kv: kv[1], reverse=not higher_is_better)
+    ordered = sorted(present.items(), key=lambda kv: kv[1])
     i = 0
     while i < n:
         j = i

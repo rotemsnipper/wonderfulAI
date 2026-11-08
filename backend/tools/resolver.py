@@ -47,7 +47,7 @@ class Resolver:
     def _result(self, query: str, status: str, codes: list[str], **extra) -> dict:
         out = {
             "query": query, "status": status, "code": None, "candidates": [self._candidate(c) for c in codes],
-            "resolved_by_default": False, "ask": None, "message": None,
+            "ask": None, "message": None,
         }
         out.update(extra)
         return out

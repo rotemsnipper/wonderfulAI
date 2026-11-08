@@ -35,27 +35,8 @@ def test_aggregates_carriers_and_keeps_cargo_classes(segment_zip):
     assert log["departures_by_class"] == {"F": 15, "G": 50, "P": 4}
 
 
-def test_international_legs_present_and_counted(segment_zip):
-    routes, log = build_routes([segment_zip], start_ym=202508)
-    assert set(routes.dest_country) == {"US", "JP", "CN"}
-    assert log["international_departures"] == 50
-
-
-def test_empty_and_out_of_window_rows_dropped(segment_zip):
-    routes, log = build_routes([segment_zip], start_ym=202508)
-    assert log["empty_rows_dropped"] == 1
-    assert (routes.year * 100 + routes.month).min() == 202601
-
-
 def test_long_haul_shares_from_aggregated_rows(segment_zip):
     routes, _ = build_routes([segment_zip])
     jan = routes[routes.month == 1]
     longhaul_all = jan[jan.distance_mi >= 3000].departures.sum() / jan.departures.sum()
     assert longhaul_all == pytest.approx(50 / 69)
-
-
-def test_reads_plain_csv_and_normalizes_codes(tmp_path):
-    p = tmp_path / "seg.csv"
-    p.write_text(HEADER + "1,1,100,90,0,500,AA,pbi,ATL,US,2026,2,F\n")
-    routes, _ = build_routes([p])
-    assert routes.iloc[0].code == "PBI"

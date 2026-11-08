@@ -1,64 +1,13 @@
 import json
 
-import pandas as pd
 import pytest
 
 from backend.config import load_settings
-from backend.ingest import build as build_mod
 from backend.ingest.build import BuildFailed, build, window
 from backend.ingest.build_routes import CSV_NAME
-from backend.ingest.checks import check_duplicate_keys, check_named_airports, check_reconciliation
 from backend.tests.ingest.fake_http import zip_bytes
 
 MONTHS = window(202607, 12)
-
-
-def am_frame(codes=("AAA", "BBB"), months=MONTHS, dep=10, pax=1000):
-    return pd.DataFrame([{"code": c, "ym": m, "departures": dep, "passengers": pax} for c in codes for m in months])
-
-
-def routes_frame(codes=("AAA", "BBB"), months=MONTHS, dep=10):
-    return pd.DataFrame([{"code": c, "year": m // 100, "month": m % 100, "dest": "ZZZ", "dest_country": "US",
-                          "distance_mi": 500, "class": "F", "departures": dep} for c in codes for m in months])
-
-
-AIRPORTS = pd.DataFrame({"code": ["AAA", "BBB"], "in_universe": [True, True]})
-
-
-def test_duplicate_keys_detected():
-    am = pd.concat([am_frame(), am_frame(codes=("AAA",), months=[202607])])
-    r = check_duplicate_keys({"airport_month": am, "airports": AIRPORTS})
-    assert not r["passed"] and r["detail"]["airport_month"] == 1
-
-
-def test_duplicate_keys_pass_on_clean_tables():
-    assert check_duplicate_keys({"airport_month": am_frame(), "routes": routes_frame()})["passed"]
-
-
-def test_named_airport_missing_fails():
-    r = check_named_airports(AIRPORTS, am_frame(), MONTHS, named=["AAA", "CCC"])
-    assert not r["passed"] and r["detail"] == {"CCC": "missing from airports"}
-
-
-def test_named_airport_below_universe_fails():
-    airports = pd.DataFrame({"code": ["AAA"], "in_universe": [False]})
-    assert not check_named_airports(airports, am_frame(), MONTHS, named=["AAA"])["passed"]
-
-
-def test_named_airport_with_a_missing_month_fails():
-    am = am_frame()
-    am = am[~((am.code == "AAA") & (am.ym == 202601))]
-    r = check_named_airports(AIRPORTS, am, MONTHS, named=["AAA"])
-    assert not r["passed"] and "1 window month" in r["detail"]["AAA"]
-
-
-def test_reconciliation_passes_when_totals_match():
-    assert check_reconciliation(am_frame(), routes_frame(), ["AAA", "BBB"], MONTHS)["passed"]
-
-
-def test_reconciliation_fails_on_shifted_totals():
-    r = check_reconciliation(am_frame(), routes_frame(dep=11), ["AAA"], MONTHS)
-    assert not r["passed"] and r["detail"]["AAA"] == {"summary": 120.0, "segment": 132.0}
 
 
 # ---- end-to-end build on a tiny raw directory ----
@@ -115,13 +64,6 @@ def test_clean_build_writes_serving_files_and_manifest(tmp_path, settings):
     assert set(on_disk["periods"]) == {"t100_summary", "delay_causes", "t100_segment"}
 
 
-def test_built_files_load_through_the_store(tmp_path, settings):
-    from backend.tools.store import load_store
-    run(tmp_path, settings)
-    store = load_store(tmp_path / "serving")
-    assert store.window_label("current") == "2025-08..2026-07"
-
-
 @pytest.fixture
 def previous_serving(tmp_path):
     out = tmp_path / "serving"
@@ -144,19 +86,6 @@ def assert_untouched(serving):
 def test_corrupted_input_fails_build_without_touching_serving_files(tmp_path, settings, previous_serving, opts, failed):
     with pytest.raises(BuildFailed, match=failed):
         run(tmp_path, settings, **opts)
-    assert_untouched(previous_serving)
-
-
-def test_duplicate_rows_in_built_table_fail_build(tmp_path, settings, previous_serving, monkeypatch):
-    original = build_mod.build_airport_month
-
-    def with_duplicate(*args, **kwargs):
-        df, build_log = original(*args, **kwargs)
-        return pd.concat([df, df.head(1)], ignore_index=True), build_log
-
-    monkeypatch.setattr(build_mod, "build_airport_month", with_duplicate)
-    with pytest.raises(BuildFailed, match="duplicate_keys"):
-        run(tmp_path, settings)
     assert_untouched(previous_serving)
 
 

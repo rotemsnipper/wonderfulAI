@@ -32,7 +32,6 @@ class Meta(BaseModel):
     uses_proxy: bool = False
     periods: dict[str, str] = Field(default_factory=dict)
     score_version: str | None = None
-    resolved_by_default: bool = False
 
 
 class Envelope(BaseModel):

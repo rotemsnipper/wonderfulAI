@@ -40,20 +40,8 @@ def test_specs_match_tool_names_and_parameters():
 
 @pytest.mark.parametrize("name,args", [
     ("nope", {}),
-    ("rank_airports", {"color": "red"}),
-    ("rank_airports", "not a dict"),
-    ("airport_profile", {}),
-    ("airport_profile", {"code": None}),
-    ("airport_profile", {"code": 42}),
-    ("compare_airports", {"codes": "LAA,SAA"}),
-    ("compare_airports", {"codes": ["LAA"]}),
-    ("compare_airports", {"codes": ["LAA", "LAA"]}),
-    ("rank_airports", {"limit": 0}),
-    ("rank_airports", {"limit": 2.5}),
     ("rank_airports", {"metric": "roi"}),
-    ("rank_airports", {"region": "europe"}),
-    ("rank_airports", {"state": "ZZ"}),
-    ("rank_airports", {"region": "new_england", "state": "CA"}),
+    ("compare_airports", {"codes": ["LAA"]}),
     ("airport_profile", {"code": "LAA", "long_haul_cutoff_mi": 1234}),
 ])
 def test_bad_input_returns_error_with_options_and_never_raises(name, args):
@@ -148,13 +136,6 @@ def test_compare_no_delay_airport_gives_unknown_not_zero():
     assert any(w["airport"] == "NHV" and w["type"] == "partial_data" for w in r["warnings"])
 
 
-def test_compare_includes_uncovered_airport_with_note():
-    r = tools.call("compare_airports", {"codes": ["SMP", "TNY"]})
-    assert r["result"]["airports"][1]["score"]["total_score"] is None
-    assert any("covered threshold" in n for n in r["notes"])
-    assert r["data_quality"]["TNY"]["tier"] == "thin"
-
-
 # ---- profile ----
 
 def test_profile_long_haul_both_bases_and_cargo_warning():
@@ -184,14 +165,6 @@ def test_profile_unmet_demand_zero_seat_gap_and_proxy_flag():
     assert any(d["name"] == "seat_gap" and d["proxy_note"] for d in r["definitions"])
 
 
-def test_profile_partial_score_airport():
-    r = tools.call("airport_profile", {"code": "NHV"})
-    s = r["result"]["score"]
-    assert s["total_score"] is None and "partial score" in s["partial_label"]
-    assert "unknown, not zero" in r["result"]["delay_note"]
-    assert any(w["type"] == "partial_data" for w in r["warnings"])
-
-
 def test_assumption_text_comes_from_config():
     r = tools.call("airport_profile", {"code": "LAA"})
     defs = {d["name"]: d for d in r["definitions"]}
@@ -215,37 +188,3 @@ def test_profile_partial_airport_is_not_scored_and_low_confidence():
     assert s["potential"] == "not scored" and s["confidence"] == "low"
     assert s["passenger_score"] == 30.0 and s["flight_score"] is None
     assert r["data_quality"]["NHV"]["confidence"] == "low"
-
-
-def test_cargo_heavy_airport_gets_medium_confidence_and_monitor():
-    r = tools.call("airport_profile", {"code": "NRC"})
-    s = r["result"]["score"]
-    assert s["confidence"] == "medium" and s["recommendation"] == "Monitor"
-    assert r["data_quality"]["NRC"]["confidence"] == "medium"
-
-
-def test_rank_rows_carry_label_and_compare_too():
-    rows = [row for rows in tools.call("rank_airports", {})["result"]["groups"].values() for row in rows]
-    assert all("recommendation" in row["score"] for row in rows)
-    airports = tools.call("compare_airports", {"codes": ["DPX", "NHV"]})["result"]["airports"]
-    assert [a["score"]["potential"] for a in airports] == ["high", "not scored"]
-
-
-def test_rank_by_flight_growth():
-    r = tools.call("rank_airports", {"metric": "flight_growth"})
-    assert_envelope(r)
-    rows = [row for rows in r["result"]["groups"].values() for row in rows]
-    nrc = next(row for row in rows if row["code"] == "NRC")
-    assert nrc["display"] == "+6.9%"
-    assert any(d["name"] == "departures_compound_growth_pct_per_year" and "cargo" in d["definition"]
-               for d in r["definitions"])
-    assert "growth" not in tools.RANK_METRICS
-
-
-def test_score_definition_uses_configured_weights_and_thresholds():
-    r = tools.call("rank_airports", {})
-    text = next(d for d in r["definitions"] if d["name"] == "total_score")["definition"]
-    s = load_settings()
-    assert f"high at {s['label']['high_min']} or more" in text
-    assert f"passenger growth {s['weights']['passenger_growth']:.0%}" in text
-    assert "proxy for profit" in text

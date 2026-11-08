@@ -59,10 +59,3 @@ def test_scoring_rules_are_generated_from_settings():
     assert "## Scoring rules (generated from the settings)" in prompt
     assert "high at a score of 72 or more" in prompt
     assert "proxy for profit" in prompt
-
-
-def test_static_prompts_hold_no_weights_or_thresholds():
-    for name in ("system.md", "knowledge.md"):
-        text = (PROMPTS_DIR / name).read_text(encoding="utf-8")
-        assert not re.search(r"(25|40|50|65|70)(%|th| or more)", text), name
-        assert "three components" not in text

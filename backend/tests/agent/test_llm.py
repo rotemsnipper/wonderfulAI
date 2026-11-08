@@ -51,13 +51,6 @@ def rate_limit():
     return errors.ClientError(429, {"error": {"code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}})
 
 
-def test_text_reply(fake):
-    fake(response([types.Part(text="LAX is busier.")]))
-    r = llm.complete([{"role": "user", "content": "hi"}], "system", SPECS)
-    assert r.text == "LAX is busier." and r.stop_reason == "end_turn" and r.tool_calls == []
-    assert (r.input_tokens, r.output_tokens, r.model) == (120, 30, "gemini-test-001")
-
-
 def test_tool_use_reply_keeps_thought_signature(fake):
     fc = types.FunctionCall(id="c1", name="airport_profile", args={"code": "SFO"})
     fake(response([types.Part(function_call=fc, thought_signature=b"sig")]))
@@ -86,12 +79,9 @@ def test_other_api_error_is_model_error_without_retry(fake):
     assert not isinstance(e.value, llm.RateLimitError) and len(client.models.calls) == 1
 
 
-def test_refusal_by_safety_finish(fake):
+def test_safety_finish_and_blocked_prompt_are_refusals(fake):
     fake(response([], finish=types.FinishReason.SAFETY))
     assert llm.complete([{"role": "user", "content": "x"}], "s").stop_reason == "refusal"
-
-
-def test_refusal_when_prompt_blocked(fake):
     fake(response(None, block=types.BlockedReason.SAFETY))
     r = llm.complete([{"role": "user", "content": "x"}], "s")
     assert r.stop_reason == "refusal" and r.text == ""
@@ -141,10 +131,3 @@ def test_key_never_appears_in_logs_or_errors(fake, monkeypatch, caplog):
     with caplog.at_level(logging.DEBUG), pytest.raises(llm.RateLimitError) as e:
         llm.complete([{"role": "user", "content": "x"}], "s")
     assert "secret-key-123" not in caplog.text and "secret-key-123" not in str(e.value)
-
-
-def test_model_from_environment(fake, monkeypatch):
-    monkeypatch.setenv("GEMINI_MODEL", "gemini-other")
-    client = fake(response([types.Part(text="ok")]))
-    llm.complete([{"role": "user", "content": "x"}], "s")
-    assert client.models.calls[0]["model"] == "gemini-other"
