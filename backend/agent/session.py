@@ -19,6 +19,7 @@ class Turn:
     tokens: dict = field(default_factory=dict)
     timings: dict = field(default_factory=dict)
     model: str = ""
+    report: dict | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)

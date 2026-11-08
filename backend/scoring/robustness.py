@@ -6,6 +6,8 @@ with a full score take part. Verdicts per airport:
 - sensitive: in the top K in 20% to 80% of draws
 - rarely in top: under 20%
 """
+import math
+
 import numpy as np
 
 ROBUST_SHARE = 0.80
@@ -70,5 +72,7 @@ def summary_line(default_top: list[str], per: dict, draws: int, k: int) -> str:
     if robust:
         parts.append(f"{', '.join(robust)} stay in the top {k} in at least {ROBUST_SHARE:.0%} of {draws} weight scenarios")
     if shaky:
-        parts.append(", ".join(f"{c} is {per[c]['verdict']} (top {k} in {per[c]['top_k_share']:.0%})" for c in shaky))
+        # floored, so a share just under the robust threshold never displays as the threshold itself
+        parts.append(", ".join(f"{c} is {per[c]['verdict']} (top {k} in {math.floor(per[c]['top_k_share'] * 100)}%)"
+                               for c in shaky))
     return "Robustness: " + "; ".join(parts) + "."

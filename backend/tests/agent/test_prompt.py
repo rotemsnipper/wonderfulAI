@@ -39,10 +39,11 @@ def test_every_prompt_rule_maps_to_an_eval_case():
     assert rules and rules <= covered, f"rules without an eval case: {sorted(rules - covered)}"
 
 
-def test_prompt_has_the_three_examples_and_background_rule():
+def test_prompt_has_the_six_examples_and_background_rule():
     text = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
-    for marker in ("Example 1 (data answer)", "Example 2 (clarifying question)", "Example 3 (decline)",
-                   "Background (not from our data):"):
+    for marker in ("Example 1 (ranking)", "Example 2 (comparison)", "Example 3 (profile)",
+                   "Example 4 (follow-up after a report)", "Example 5 (clarifying question)", "Example 6 (decline)",
+                   "**Comparison**", "**Verdict**", "**Why**", "top_differences", "Background (not from our data):"):
         assert marker in text
 
 

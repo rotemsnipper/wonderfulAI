@@ -20,7 +20,7 @@ from google.genai import errors, types
 log = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-3.8-flash"
-MAX_OUTPUT_TOKENS = 2048
+MAX_OUTPUT_TOKENS = 8192  # thinking tokens count against this cap, so it must leave room for them
 RETRY_DELAY_S = 5.0
 REFUSAL_REASONS = {"SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "LANGUAGE"}
 
@@ -58,6 +58,7 @@ class ModelReply:
     stop_reason: str = "end_turn"  # end_turn | tool_use | max_tokens | refusal | other
     input_tokens: int = 0
     output_tokens: int = 0
+    thinking_tokens: int = 0
     model: str = ""
 
 
@@ -130,7 +131,8 @@ def _stop_reason(finish: str | None, has_calls: bool) -> str:
 def from_response(resp: types.GenerateContentResponse, model: str) -> ModelReply:
     usage = resp.usage_metadata
     tokens = {"input_tokens": (usage.prompt_token_count or 0) if usage else 0,
-              "output_tokens": (usage.candidates_token_count or 0) if usage else 0}
+              "output_tokens": (usage.candidates_token_count or 0) if usage else 0,
+              "thinking_tokens": (usage.thoughts_token_count or 0) if usage else 0}
     if not resp.candidates:
         block = resp.prompt_feedback.block_reason if resp.prompt_feedback else None
         return ModelReply(text="", stop_reason="refusal" if block else "other", model=model, **tokens)

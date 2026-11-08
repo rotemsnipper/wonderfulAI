@@ -87,10 +87,13 @@ def test_safety_finish_and_blocked_prompt_are_refusals(fake):
     assert r.stop_reason == "refusal" and r.text == ""
 
 
-def test_max_token_stop(fake):
-    fake(response([types.Part(text="LAX handled 36")], finish=types.FinishReason.MAX_TOKENS))
+def test_max_token_stop_reports_thinking_tokens_and_leaves_room_for_them(fake):
+    resp = response([types.Part(text="LAX handled 36")], finish=types.FinishReason.MAX_TOKENS)
+    resp.usage_metadata.thoughts_token_count = 1900
+    client = fake(resp)
     r = llm.complete([{"role": "user", "content": "x"}], "s")
-    assert r.stop_reason == "max_tokens" and r.text == "LAX handled 36"
+    assert r.stop_reason == "max_tokens" and r.text == "LAX handled 36" and r.thinking_tokens == 1900
+    assert client.models.calls[0]["config"].max_output_tokens >= 8192
 
 
 def test_messages_and_specs_are_translated(fake):

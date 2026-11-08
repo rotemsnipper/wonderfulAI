@@ -53,6 +53,7 @@ def _summary(turn: dict) -> dict:
     return {
         "question": turn.get("question"), "display_text": turn.get("display_text"),
         "check_outcome": turn.get("check_outcome"), "footer": turn.get("footer"), "error": turn.get("error"),
+        "report": {k: (turn.get("report") or {}).get(k) for k in ("kind", "mode", "subject")},
         "tools": [{"tool": c["tool"], "args": c["args"], "error": (c.get("result") or {}).get("error")}
                   for c in turn.get("tool_trace") or []],
         "tokens": turn.get("tokens"), "timings": turn.get("timings"),

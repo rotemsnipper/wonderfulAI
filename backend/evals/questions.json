@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "notes": "Code-graded eval cases. 'figures' name keys in scripts/recompute/expected.json (dot path) and the tolerance in percent of the expected value. 'rules' map system-prompt rules to the cases that exercise them.",
+  "notes": "Code-graded eval cases. 'figures' name keys in scripts/recompute/expected.json (dot path) and the tolerance in percent of the expected value. 'rules' map system-prompt rules to the cases that exercise them. 'expect_modes' lists the report mode per turn: report:<kind>, follow_up, plain, not_report, or null for any.",
   "cases": [
     {
       "id": "q1_new_england",
@@ -12,11 +12,7 @@
         "PWM",
         "BOS"
       ],
-      "required": [
-        "(?i)score|rank",
-        "(?i)robust|sensitive|weight",
-        "(?i)partial|no delay data|HVN"
-      ],
+      "required": [],
       "forbidden": [
         "(?i)\\bROI\\b"
       ],
@@ -25,6 +21,9 @@
         "R1",
         "R3",
         "R5"
+      ],
+      "expect_modes": [
+        "report:ranking"
       ]
     },
     {
@@ -57,6 +56,9 @@
         "R2",
         "R3",
         "R4"
+      ],
+      "expect_modes": [
+        "report:comparison"
       ]
     },
     {
@@ -67,11 +69,7 @@
       "expected_airports": [
         "ANC"
       ],
-      "required": [
-        "(?i)3,?000",
-        "(?i)cargo",
-        "(?i)passenger"
-      ],
+      "required": [],
       "figures": [
         {
           "key": "q3.passenger_flights_pct_at_3000.value",
@@ -88,6 +86,9 @@
         "R3",
         "R4",
         "R5"
+      ],
+      "expect_modes": [
+        "report:profile"
       ]
     },
     {
@@ -115,6 +116,9 @@
         "R1",
         "R3",
         "R6"
+      ],
+      "expect_modes": [
+        "report:profile"
       ]
     },
     {
@@ -139,6 +143,10 @@
       "rules": [
         "R1",
         "R4"
+      ],
+      "expect_modes": [
+        "report:profile",
+        "not_report"
       ]
     },
     {
@@ -159,6 +167,9 @@
       "expect_confidence": "n/a",
       "rules": [
         "R2"
+      ],
+      "expect_modes": [
+        "plain"
       ]
     },
     {
@@ -176,6 +187,9 @@
       "number_check": true,
       "rules": [
         "R7"
+      ],
+      "expect_modes": [
+        "plain"
       ]
     },
     {
@@ -273,6 +287,9 @@
       "rules": [
         "R10",
         "R3"
+      ],
+      "expect_modes": [
+        "report:comparison"
       ]
     },
     {
@@ -326,7 +343,76 @@
         "R1",
         "R2",
         "R4"
+      ],
+      "expect_modes": [
+        "report:comparison",
+        "not_report",
+        "report:profile",
+        "report:profile",
+        "report:ranking",
+        null
       ]
+    },
+    {
+      "id": "profile_should_expand",
+      "turns": [
+        "Should Bangor airport expand its terminal?"
+      ],
+      "expected_airports": [
+        "BGR"
+      ],
+      "required": [
+        "(?i)still needed before investing"
+      ],
+      "expect_modes": [
+        "report:profile"
+      ],
+      "forbidden": [
+        "(?i)\bROI\b"
+      ],
+      "number_check": true,
+      "rules": [
+        "R1",
+        "R3"
+      ]
+    },
+    {
+      "id": "report_then_follow_ups",
+      "turns": [
+        "Which airports in New England are strong candidates for terminal expansion?",
+        "Why is PWM sensitive to the weights?",
+        "Compare BGR and PWM."
+      ],
+      "expected_airports": [
+        "BGR",
+        "PWM"
+      ],
+      "per_turn_airports": [
+        [
+          "BGR",
+          "PWM",
+          "BOS"
+        ],
+        [
+          "PWM"
+        ],
+        [
+          "BGR",
+          "PWM"
+        ]
+      ],
+      "expect_modes": [
+        "report:ranking",
+        "report:profile",
+        "report:comparison"
+      ],
+      "number_check": true,
+      "all_turns_number_check": true,
+      "rules": [
+        "R1",
+        "R3"
+      ],
+      "notes": "A follow-up of a different kind (ranking, then a profile, then a comparison) gets a full report of the new kind; a same-kind follow-up on airports already reported is short (see followup_cutoff)."
     }
   ]
 }

@@ -134,3 +134,57 @@ def unverified_numbers(answer: str, pool: set[float], allowed_text: str = "") ->
     """Numbers in `answer` that match nothing in `pool` or in `allowed_text` (the user's question, fixed prompt numbers)."""
     full = sorted(pool | {v for _, v, _, _ in extract_numbers(allowed_text)})
     return [written for written, value, tol, signed in extract_numbers(answer) if not _matches(value, tol, signed, full)]
+
+
+# ---------- per-airport attribution ----------
+
+CODE = re.compile(r"\b[A-Z]{3}\b")
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def airport_pools(trace: Iterable[dict]) -> tuple[dict[str, set[float]], set[float]]:
+    """Numbers tied to each airport in the tool results, and the numbers tied to no airport (national medians,
+    settings, counts). A subtree belongs to an airport when it is a dict with that `code` (or `airport`), a pair
+    with `a`/`b` codes (its `a_*` fields are a's, `b_*` fields b's, the rest both), or the value of a key that is
+    an airport code."""
+    calls = list(trace)
+    codes = {c for call in calls for c in ((call.get("result") or {}).get("meta") or {}).get("airports", [])}
+    per: dict[str, set[float]] = {}
+    shared: set[float] = set()
+
+    def walk(node, owners: frozenset) -> None:
+        if isinstance(node, dict):
+            here = owners | {node[k] for k in ("code", "airport") if node.get(k) in codes}
+            a, b = node.get("a"), node.get("b")
+            for k, v in node.items():
+                own = here | {k} if k in codes else here
+                if a in codes and b in codes:  # a pair: a_* fields are a's, b_* fields b's, the rest both
+                    own = own | ({a} if k.startswith("a_") else {b} if k.startswith("b_") else {a, b})
+                walk(v, own)
+        elif isinstance(node, (list, tuple)):
+            for v in node:
+                walk(v, owners)
+        else:
+            nums = numbers_in_data(node)
+            if not owners:
+                shared.update(nums)
+            for c in owners:
+                per.setdefault(c, set()).update(nums)
+
+    for call in calls:
+        walk(call.get("result"), frozenset())
+    return per, shared
+
+
+def misattributed_numbers(answer: str, trace: Iterable[dict], allowed_text: str = "") -> list[str]:
+    """Numbers in a sentence that names exactly one airport but match none of that airport's values (nor a value
+    tied to no airport). Catches a real figure moved to the wrong airport, which the pool check lets through."""
+    per, shared = airport_pools(trace)
+    bad: list[str] = []
+    for sentence in SENTENCE_END.split(answer or ""):
+        named = set(CODE.findall(sentence)) & set(per)
+        if len(named) != 1:
+            continue
+        (code,) = named
+        bad += unverified_numbers(sentence, per[code] | shared, allowed_text)
+    return list(dict.fromkeys(bad))

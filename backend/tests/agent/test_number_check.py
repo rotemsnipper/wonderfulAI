@@ -1,4 +1,4 @@
-from backend.agent.safeguards import extract_numbers, numbers_in_data, unverified_numbers
+from backend.agent.safeguards import extract_numbers, misattributed_numbers, numbers_in_data, unverified_numbers
 
 TOOL_RESULT = {
     "result": {
@@ -89,3 +89,17 @@ def test_numbers_in_data_reads_nested_strings_and_scales_fractions():
     pool = numbers_in_data({"a": [0.25, {"b": "about 3.1 million"}], "flag": True})
     assert {0.25, 25.0, 3.1e6} <= pool
     assert 1.0 not in pool
+
+
+PAIR_TRACE = [{"tool": "compare_airports", "args": {"codes": ["LAX", "SNA"]}, "result": {
+    "result": {"airports": [{"code": "LAX", "display": {"delay_rate_pct": "19.7%"}},
+                            {"code": "SNA", "display": {"delay_rate_pct": "18.3%"}}],
+               "differences": [{"a": "LAX", "b": "SNA", "difference": 1.4}], "national_median_pct": 21.7},
+    "meta": {"airports": ["LAX", "SNA"]}}}]
+
+
+def test_number_moved_to_the_wrong_airport_is_caught():
+    assert misattributed_numbers("SNA has a delay rate of 19.7% (SNA).", PAIR_TRACE) == ["19.7%"]
+    assert misattributed_numbers("LAX has a delay rate of 19.7% (LAX).", PAIR_TRACE) == []
+    assert misattributed_numbers("LAX is 1.4 points above SNA.", PAIR_TRACE) == []  # two airports: not checked
+    assert misattributed_numbers("SNA is below the national median of 21.7% (SNA).", PAIR_TRACE) == []

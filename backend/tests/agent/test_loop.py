@@ -1,10 +1,16 @@
+from pathlib import Path
+
+import pytest
+
 from backend.agent import llm
-from backend.agent.loop import ADVICE_LINE, CAP_PREFIX, NUMBER_CHECK_PREFIX, Agent
 from backend.agent.llm import ModelReply, ToolCall
+from backend.agent.loop import ADVICE_LINE, CAP_PREFIX, NUMBER_CHECK_PREFIX, Agent
 from backend.agent.session import InMemorySessionStore
+from backend.tools import tools
+from backend.tools.store import load_store
 
 RESULT = {
-    "tool": "airport_profile", "inputs": {"code": "SFO"},
+    "tool": "lookup", "inputs": {"code": "SFO"},
     "result": {"code": "SFO", "delay_rate_pct": 31.65, "excess_delayed_flights": 14821},
     "definitions": [], "warnings": [{"airport": "SFO", "type": "partial_data", "severity": "high", "message": "m"}],
     "data_quality": {"SFO": {"tier": "full", "confidence": "high", "reason": ""}}, "notes": [],
@@ -13,7 +19,7 @@ RESULT = {
 }
 
 
-def tool_reply(i=0, name="airport_profile"):
+def tool_reply(i=0, name="lookup"):
     return ModelReply(text="", tool_calls=[ToolCall(id=f"c{i}", name=name, args={"code": "SFO"})], stop_reason="tool_use",
                       input_tokens=10, output_tokens=2, model="fake")
 
@@ -44,7 +50,7 @@ def make_agent(model, cap=7, events=None):
         calls.append((name, args))
         return RESULT
 
-    agent = Agent(system="system prompt", tool_specs=[{"name": "airport_profile"}], call_tool=call_tool,
+    agent = Agent(system="system prompt", tool_specs=[{"name": "lookup"}], call_tool=call_tool,
                   complete=model, round_cap=cap,
                   on_event=(lambda k, d: events.append(k)) if events is not None else (lambda k, d: None))
     return agent, calls
@@ -56,14 +62,14 @@ def test_tool_use_then_answer_is_saved_with_footer_and_warnings():
     agent, calls = make_agent(model, events=events)
     store = InMemorySessionStore()
     out = agent.run_turn(store, "u", "c", "What is SFO's unmet demand?")
-    assert calls == [("airport_profile", {"code": "SFO"})]
+    assert calls == [("lookup", {"code": "SFO"})]
     assert out["saved"] and out["check_outcome"]["status"] == "passed"
     assert out["footer"]["confidence"] == "low"  # partial_data warning on a mentioned airport
     assert out["warnings"][0]["type"] == "partial_data"
     assert [m["role"] for m in out["model_messages"]] == ["user", "assistant", "tool", "assistant"]
     assert events == ["tool_start", "tool_end", "done"]
     assert len(store.load("u", "c")) == 1
-    assert out["tokens"] == {"input": 20, "output": 7}
+    assert out["tokens"] == {"input": 20, "output": 7, "thinking": 0}
 
 
 def test_rewrite_path_fixes_invented_number():
@@ -130,15 +136,6 @@ def test_rate_limit_message_is_clear():
     assert "rate limited" in out["display_text"] and out["saved"] is False
 
 
-def test_advice_line_added_by_code_for_recommendations_with_data():
-    model = FakeModel(tool_reply(), text_reply("SFO looks constrained."))
-    agent, _ = make_agent(model)
-    out = agent.run_turn(InMemorySessionStore(), "u", "c", "Should SFO expand?")
-    assert out["display_text"].endswith(ADVICE_LINE)
-    agent, _ = make_agent(FakeModel(text_reply("Which airport do you mean?")))
-    assert ADVICE_LINE not in agent.run_turn(InMemorySessionStore(), "u", "c", "Should Portland expand?")["display_text"]
-
-
 def test_follow_up_without_tools_reuses_earlier_data_after_resume():
     store = InMemorySessionStore()
     agent, _ = make_agent(FakeModel(tool_reply(), text_reply("SFO delay rate is 31.7%.")))
@@ -147,3 +144,68 @@ def test_follow_up_without_tools_reuses_earlier_data_after_resume():
     out = agent.run_turn(store, "u", "c", "And the excess delays?")
     assert calls == [] and out["check_outcome"]["status"] == "passed"  # pool rebuilt from the stored turn
     assert out["footer"]["notes"] and "reused" in out["footer"]["notes"][0]
+    assert "Figures reused" in out["display_text"] and out["report"] is None
+
+
+# ---- reports, with real tool results from the fixture dataset ----
+
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "serving"
+REPORT_TEXT = "**Verdict**\nNRC is a cargo-heavy hub.\n\n**Why**\n- Cargo is 50.0% of departures."
+
+
+@pytest.fixture
+def fixture_tools():
+    tools.configure(load_store(FIXTURE))
+    yield
+    tools._ctx = None
+
+
+def profile_call(i=0, **args):
+    return ModelReply(text="", tool_calls=[ToolCall(id=f"p{i}", name="airport_profile", args={"code": "NRC", **args})],
+                      stop_reason="tool_use", model="fake")
+
+
+def fixture_agent(*replies):
+    return Agent(system="system prompt", tool_specs=[], call_tool=tools.call, complete=FakeModel(*replies))
+
+
+def test_data_turn_is_shown_as_a_report_and_checks_only_the_model_text(fixture_tools):
+    out = fixture_agent(profile_call(), text_reply(REPORT_TEXT)).run_turn(InMemorySessionStore(), "u", "c", "Should NRC expand?")
+    assert out["report"]["kind"] == "profile" and out["report"]["mode"] == "report"
+    assert out["display_text"].startswith("**The airports**")
+    assert "**Verdict**\n\nNRC is a cargo-heavy hub." in out["display_text"]
+    assert "Long-haul share and unmet demand" in out["display_text"] and ADVICE_LINE in out["display_text"]
+    assert out["check_outcome"]["status"] == "passed"
+    assert out["model_messages"][-1]["content"] == REPORT_TEXT
+
+
+def test_follow_up_on_the_same_subject_is_short_after_a_resume(fixture_tools):
+    store = InMemorySessionStore()
+    fixture_agent(profile_call(), text_reply(REPORT_TEXT)).run_turn(store, "u", "c", "Profile NRC")
+    later = fixture_agent(profile_call(1, long_haul_cutoff_mi=2000), text_reply("**Verdict**\nAt 2,000 miles it is 33.3%."))
+    out = later.run_turn(store, "u", "c", "And at 2,000 miles?")
+    assert out["report"]["mode"] == "follow_up"
+    assert "Capacity evidence" not in out["display_text"] and "Confidence" in out["display_text"]
+
+
+def test_plain_reply_has_no_report(fixture_tools):
+    out = fixture_agent(text_reply("Which Portland do you mean?")).run_turn(InMemorySessionStore(), "u", "c", "Portland?")
+    assert out["report"] is None and out["display_text"] == "Which Portland do you mean?"
+
+
+def test_answer_stopped_by_the_token_limit_is_marked_cut_off():
+    agent, _ = make_agent(FakeModel(tool_reply(), text_reply("SFO has about 14,821 excess", stop="max_tokens")))
+    assert agent.run_turn(InMemorySessionStore(), "u", "c", "SFO?")["check_outcome"]["cut_off"] is True
+    agent, _ = make_agent(FakeModel(tool_reply(), text_reply("SFO has about 14,821 excess delayed flights.")))
+    assert agent.run_turn(InMemorySessionStore(), "u", "c", "SFO?")["check_outcome"]["cut_off"] is False
+
+
+def test_number_given_for_the_wrong_airport_triggers_a_rewrite(fixture_tools):
+    compare = ModelReply(text="", tool_calls=[ToolCall(id="k", name="compare_airports", args={"codes": ["LAA", "SAA"]})],
+                         stop_reason="tool_use", model="fake")
+    model = FakeModel(compare, text_reply("**Verdict**\nSAA runs 66,000 departures per usable runway (SAA)."),
+                      text_reply("**Verdict**\nSAA runs 51,600 departures per usable runway (SAA)."))
+    out = Agent(system="s", tool_specs=[], call_tool=tools.call, complete=model).run_turn(
+        InMemorySessionStore(), "u", "c", "Compare LAA and SAA delays.")
+    assert out["check_outcome"]["status"] == "rewritten" and out["check_outcome"]["first_unverified"] == ["66,000"]
+    assert "not values of the airport named" in model.requests[-1]["messages"][-1]["content"]

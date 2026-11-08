@@ -188,3 +188,10 @@ def test_profile_partial_airport_is_not_scored_and_low_confidence():
     assert s["potential"] == "not scored" and s["confidence"] == "low"
     assert s["passenger_score"] == 30.0 and s["flight_score"] is None
     assert r["data_quality"]["NHV"]["confidence"] == "low"
+
+
+def test_rank_gives_score_gaps_from_the_leader_to_the_next_two():
+    diffs = tools.call("rank_airports", {})["result"]["top_differences"]
+    assert {(d["a"], d["b"]) for d in diffs} == {("DPX", "SMP"), ("DPX", "PME")}
+    total = next(d for d in diffs if d["b"] == "SMP" and d["metric"] == "total_score")
+    assert total["difference"] == round(total["a_value"] - total["b_value"], 1)

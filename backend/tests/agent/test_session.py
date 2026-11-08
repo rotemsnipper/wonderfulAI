@@ -52,3 +52,9 @@ def test_pool_rebuild_matches_live_pool():
 def test_history_messages_concatenates_turns_in_order():
     turns = [make_turn("first"), make_turn("second")]
     assert [m["content"] for m in history_messages(turns) if m["role"] == "user"] == ["first", "second"]
+
+
+def test_turn_stored_before_reports_existed_still_loads():
+    old = Turn("q", [], [], {}, {}, [], "d").to_dict()
+    del old["report"]
+    assert Turn.from_dict(old).report is None

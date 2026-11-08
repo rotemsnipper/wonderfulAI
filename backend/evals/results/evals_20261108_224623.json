@@ -1,0 +1,125 @@
+[
+  {
+    "case_id": "thin_data_new_haven",
+    "passed": true,
+    "checks": {
+      "airports": [
+        true,
+        "found ['HVN']; need 1 of ['HVN']"
+      ],
+      "per_turn_airports": [
+        true,
+        "n/a"
+      ],
+      "required": [
+        true,
+        "all required content present"
+      ],
+      "forbidden": [
+        true,
+        "no forbidden content"
+      ],
+      "number_check": [
+        true,
+        "number check passed"
+      ],
+      "footer": [
+        true,
+        "confidence low"
+      ],
+      "complete": [
+        true,
+        "answers complete"
+      ],
+      "figures": [
+        true,
+        "n/a"
+      ],
+      "modes": [
+        true,
+        "n/a"
+      ],
+      "report_sections": [
+        true,
+        "required sections present"
+      ],
+      "label_match": [
+        true,
+        "labels match the tools"
+      ],
+      "comparison_names_airports": [
+        true,
+        "comparison names every airport"
+      ],
+      "no_financial_claim": [
+        true,
+        "no financial claim"
+      ],
+      "verdict_names_top": [
+        true,
+        "verdict names the top airport"
+      ]
+    },
+    "turns": [
+      {
+        "question": "Is New Haven airport congested?",
+        "display_text": "**The airports**\n\n|  | HVN | Percentile among covered airports |\n|---|---|---|\n| Airport | Tweed New Haven Airport |  |\n| Location | New Haven, CT |  |\n| Size tier | nonhub |  |\n| Usable runways | 1 of 1 |  |\n| Score (0-100) | not scored (partial 81.4) |  |\n| Passenger side | 72.3 |  |\n| Flight side | n/a |  |\n| Recommendation | Not scored: review the available metrics |  |\n| Passengers | 729,639 |  |\n| Passenger growth a year since 2019 | +50.8% | 100.0 |\n| Passengers vs prior year | +3.6% |  |\n| Load factor | 78.0% | 44.7 |\n| Departures | 5,698 |  |\n| Flight growth a year since 2019 | +28.4% | 99.4 |\n| Departures vs prior year | +1.4% |  |\n| System delay rate | unknown | unknown |\n\n- **HVN**: strengths: passenger growth (percentile 100.0), flight growth (percentile 99.4); weaknesses: none\n\n**Verdict**\n\nCongestion at Tweed New Haven Airport (HVN) is unknown because no arrival delay data is reported for the airport in public records.\n\n**Why**\n\nBTS delay cause data does not report figures for HVN, meaning delay rates, system delay rates, and excess delayed flights are missing rather than zero (HVN). On the airfield side, HVN operates 5,698 departures (HVN) on 1 usable runway, giving 5,698 departures per usable runway (HVN). On the passenger side, its load factor is 78.0% (HVN) with a seat gap of 0 (HVN), showing scheduled seats currently accommodate passenger demand. Because congestion is absent from the metrics, HVN receives only a partial score of 81.4 without congestion (HVN), which cannot be compared with full capacity-need scores.\n\n**Unmet demand**\n\n- Seat gap: 0 seats a year; zero seat gap: seats offered already keep the load factor at or below 85%; this is a measured result, not missing data\n- Excess delayed flights: unknown (no delay data)\n- no delay data reported for this airport (unknown, not zero)\n- Lower bound: a constrained airport never schedules the flights that would reveal its full demand.\n\n**Warnings**\n\n- **HVN** (high): No delay data is reported for this airport; congestion is unknown (not zero).\n\n**Data period, assumptions and confidence**\n\n- Traffic (T-100): 2025-08..2026-07\n- Delays (BTS delay causes): 2025-08..2026-07\n- Prior-year window: 2024-08..2025-07\n- Growth baseline year: 2019\n- Routes and distances (T-100 segment): 2025-08..2026-07\n- system delay rate: system delays are mostly, not purely, congestion\n- seat gap: lower bound of unmet demand\n- excess delayed flights: lower bound of congestion-related unmet demand\n- capacity-need score: proxy for profit, not a financial return\n- Confidence: Low (partial or thin data for HVN)\n\n**You could ask next**\n\n- What share of HVN's flights are long-haul?",
+        "check_outcome": {
+          "status": "passed",
+          "unverified": [],
+          "rounds": 3,
+          "capped": false,
+          "cut_off": false
+        },
+        "footer": {
+          "data_period": {
+            "t100_summary": "2025-08..2026-07",
+            "delay_causes": "2025-08..2026-07",
+            "prior_window": "2024-08..2025-07",
+            "baseline": "2019",
+            "t100_segment": "2025-08..2026-07"
+          },
+          "assumptions": [
+            "system_delay_rate_pct: system delays are mostly, not purely, congestion",
+            "seat_gap: lower bound of unmet demand",
+            "excess_delayed_flights: lower bound of congestion-related unmet demand",
+            "total_score: proxy for profit, not a financial return"
+          ],
+          "confidence": "low",
+          "confidence_reason": "partial or thin data for HVN",
+          "notes": []
+        },
+        "error": null,
+        "report": {
+          "kind": "profile",
+          "mode": "report",
+          "subject": "profile:HVN"
+        },
+        "tools": [
+          {
+            "tool": "resolve_airport",
+            "args": {
+              "query": "New Haven"
+            },
+            "error": null
+          },
+          {
+            "tool": "airport_profile",
+            "args": {
+              "code": "HVN"
+            },
+            "error": null
+          }
+        ],
+        "tokens": {
+          "input": 15232,
+          "output": 219,
+          "thinking": 1612
+        },
+        "timings": {
+          "total_ms": 18728
+        }
+      }
+    ]
+  }
+]

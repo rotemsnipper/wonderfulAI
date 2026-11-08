@@ -6,6 +6,7 @@ quote are computed here: raw values, display strings, and differences and ratios
 """
 import inspect
 import logging
+import math
 from functools import cached_property
 
 from backend.config import SERVING_DIR
@@ -24,6 +25,7 @@ REGIONS = {
 }
 RANK_METRICS = ["score", "passenger_growth", "flight_growth", "load_factor", "congestion", "delay_rate", "passengers"]
 PER_GROUP_CAP = 10
+TOP_COMPARED = 3
 GROWTH_SINCE_BASELINE = {"compound_growth_pct_per_year", "departures_compound_growth_pct_per_year"}
 TOTAL_CAP = 30
 MAX_COMPARE = 5
@@ -328,14 +330,29 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
         rb = robustness([c.scores[x] for x in ranked], c.settings["weights"], c.settings)
         result["robustness"] = {
             "summary": rb["summary"], "draws": rb["draws"], "top_k": rb["top_k"],
-            "per_airport": {x: {**v, "top_k_share_pct": round(v["top_k_share"] * 100)}
+            "per_airport": {x: {**v, "top_k_share_pct": math.floor(v["top_k_share"] * 100)}
                             for x, v in rb["per_airport"].items() if x in shown_codes},
         }
+        result["top_differences"] = _top_differences(c, ranked[:TOP_COMPARED])
     codes = shown_codes + unranked
     defs = (["total_score", "compound_growth_pct_per_year", "load_factor", "departures_compound_growth_pct_per_year",
              "system_delay_rate_pct"] if metric == "score" else [key_name])
     return _envelope("rank_airports", {"region": region, "state": state, "size_tier": size_tier, "metric": metric, "limit": limit},
                      result, codes, defs)
+
+
+def _top_differences(c: Context, top: list[str]) -> list[dict]:
+    """Score and side-score gaps from the leader to each other top airport, from displayed rounding, so the
+    model can compare the top candidates without computing a difference itself."""
+    out = []
+    for other in top[1:]:
+        for name in ("total_score", "passenger_score", "flight_score"):
+            a, b = c.scores[top[0]][name], c.scores[other][name]
+            if a is None or b is None:
+                continue
+            out.append({"metric": name, "a": top[0], "b": other, "a_value": round(a, 1), "b_value": round(b, 1),
+                        "difference": round(round(a, 1) - round(b, 1), 1)})
+    return out
 
 
 COMPARE_METRICS = ["passengers", "load_factor", "compound_growth_pct_per_year", "passengers_vs_prior_pct",
@@ -410,8 +427,11 @@ def airport_profile(code: str, long_haul_cutoff_mi: int | None = None) -> dict:
         "headline_all_flights_pct": _r(head["all_flights_pct"], 2),
         "display": {"passenger_flights": fmt("pct", head["passenger_flights_pct"]), "all_flights": fmt("pct", head["all_flights_pct"])},
         "table": [{"cutoff_mi": x["cutoff_mi"], "passenger_flights_pct": _r(x["passenger_flights_pct"], 2),
-                   "all_flights_pct": _r(x["all_flights_pct"], 2)} for x in lh["table"]],
+                   "all_flights_pct": _r(x["all_flights_pct"], 2),
+                   "display": {"passenger_flights": fmt("pct", x["passenger_flights_pct"]),
+                               "all_flights": fmt("pct", x["all_flights_pct"])}} for x in lh["table"]],
         "cargo_share_of_departures_pct": _r(lh["cargo_share_of_departures_pct"], 2),
+        "cargo_share_display": fmt("pct", lh["cargo_share_of_departures_pct"]),
         "basis": f"{lh['headline_basis']}; all flights: {lh['all_flights_basis']}",
     }
     u = metrics.unmet_demand(c.store, code, s, c.median_delay)
