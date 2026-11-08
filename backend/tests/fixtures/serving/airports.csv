@@ -1,0 +1,13 @@
+airport_id,code,name,city,state,runways_total,runways_usable,max_runway_ft,size_tier,in_universe
+90001,LAA,Lakeshore International,Lakeshore,CA,4,4,12900,large,True
+90002,SAA,Sandy Orange County,Sandy Orange,CA,2,1,5700,medium,True
+90003,NRC,Northern Reach International,Northern Reach,AK,3,3,12400,small,True
+90004,BAY,Bayfront International,Bayfront,CA,4,4,11900,large,True
+90005,NHV,New Harbor Regional,New Harbor,CT,2,2,5600,nonhub,True
+90006,SMP,Smalltown Regional,Smalltown,MT,1,1,4000,nonhub,True
+90007,PME,Portland Jetport,Portland,ME,2,2,7200,small,True
+90008,PMW,Portland International,Portland,OR,3,3,11000,large,True
+90009,SPA,Springfield Regional,Springfield,MO,2,2,8000,medium,True
+90010,SPB,Springfield Capital,Springfield,IL,2,2,7000,nonhub,True
+90011,DPX,Palm Coast Municipal,Palm Coast,FL,2,2,10000,medium,True
+90013,TNY,Tiny Strip,Tinyville,NE,1,1,3500,nonhub,False

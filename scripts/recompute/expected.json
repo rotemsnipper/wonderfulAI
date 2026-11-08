@@ -1,0 +1,118 @@
+{
+  "window": "2025-08..2026-07",
+  "note": "recomputed from raw files with plain pandas; see recompute.py",
+  "q2": {
+    "LAX": {
+      "delay_rate_pct": {
+        "value": 19.660028090899267,
+        "formula": "sum(arr_del15) / sum(arr_flights) * 100"
+      },
+      "system_delay_rate_pct": {
+        "value": 4.95722054442838,
+        "formula": "sum(nas_ct) / sum(arr_flights) * 100"
+      },
+      "cancel_rate_pct": {
+        "value": 1.0166230211607818,
+        "formula": "sum(arr_cancelled) / sum(arr_flights) * 100"
+      },
+      "load_factor": {
+        "value": 0.82195458154248,
+        "formula": "sum(passengers) / sum(seats)"
+      },
+      "runways_usable": {
+        "value": 4,
+        "formula": "open runways >= 3000 ft"
+      },
+      "departures_per_usable_runway": {
+        "value": 66796.75,
+        "formula": "sum(departures) / usable runways"
+      }
+    },
+    "SNA": {
+      "delay_rate_pct": {
+        "value": 18.34381323295838,
+        "formula": "sum(arr_del15) / sum(arr_flights) * 100"
+      },
+      "system_delay_rate_pct": {
+        "value": 4.292334805596049,
+        "formula": "sum(nas_ct) / sum(arr_flights) * 100"
+      },
+      "cancel_rate_pct": {
+        "value": 0.9051152063706186,
+        "formula": "sum(arr_cancelled) / sum(arr_flights) * 100"
+      },
+      "load_factor": {
+        "value": 0.7966394555881731,
+        "formula": "sum(passengers) / sum(seats)"
+      },
+      "runways_usable": {
+        "value": 1,
+        "formula": "open runways >= 3000 ft"
+      },
+      "departures_per_usable_runway": {
+        "value": 51396.0,
+        "formula": "sum(departures) / usable runways"
+      }
+    }
+  },
+  "q3": {
+    "passenger_flights_pct_at_2000": {
+      "value": 15.157210751013613,
+      "formula": "departures with DISTANCE >= 2000 / all departures, classes F"
+    },
+    "all_flights_pct_at_2000": {
+      "value": 45.95238913913053,
+      "formula": "departures with DISTANCE >= 2000 / all departures, classes F,G,L,P"
+    },
+    "passenger_flights_pct_at_2500": {
+      "value": 10.055580914534275,
+      "formula": "departures with DISTANCE >= 2500 / all departures, classes F"
+    },
+    "all_flights_pct_at_2500": {
+      "value": 41.34717876422653,
+      "formula": "departures with DISTANCE >= 2500 / all departures, classes F,G,L,P"
+    },
+    "passenger_flights_pct_at_3000": {
+      "value": 2.698493676664071,
+      "formula": "departures with DISTANCE >= 3000 / all departures, classes F"
+    },
+    "all_flights_pct_at_3000": {
+      "value": 29.505209228759067,
+      "formula": "departures with DISTANCE >= 3000 / all departures, classes F,G,L,P"
+    },
+    "cargo_share_of_departures_pct": {
+      "value": 54.69059817304497,
+      "formula": "departures in classes G,P / all departures"
+    }
+  },
+  "q4": {
+    "SFO": {
+      "load_factor": {
+        "value": 0.820943861187539,
+        "formula": "sum(passengers) / sum(seats)"
+      },
+      "seat_gap": {
+        "value": 0.0,
+        "formula": "max(0, passengers / 0.85 - seats)"
+      },
+      "national_median_delay_rate_pct": {
+        "value": 21.661234626656203,
+        "formula": "median delay rate over US airports with >= 250k passengers and delay data"
+      },
+      "excess_delayed_flights": {
+        "value": 15057.392385462183,
+        "formula": "max(0, delayed - arrivals * median rate)"
+      },
+      "delay_cause_shares_pct": {
+        "value": {
+          "nas_ct": 54.69345849222645,
+          "carrier_ct": 21.88329212588526,
+          "late_aircraft_ct": 21.35366466915308,
+          "weather_ct": 1.986045342161505,
+          "security_ct": 0.08353937057369147
+        },
+        "formula": "cause count / sum of cause counts"
+      }
+    }
+  }
+}

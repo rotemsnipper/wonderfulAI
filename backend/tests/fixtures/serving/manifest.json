@@ -1,0 +1,25 @@
+{
+  "note": "fixture dataset, not real data",
+  "periods": {
+    "t100_summary": "2019-01..2019-12, 2024-08..2026-07",
+    "delay_causes": "2024-08..2026-07",
+    "t100_segment": "2025-08..2026-07"
+  },
+  "window": {
+    "current": "2025-08..2026-07",
+    "prior": "2024-08..2025-07",
+    "baseline_year": 2019
+  },
+  "row_counts": {
+    "airports": 12,
+    "airport_month": 432,
+    "routes": 300
+  },
+  "checks": {
+    "duplicate_keys": "pass",
+    "named_airports": "n/a",
+    "reconciliation": "n/a"
+  },
+  "build_date": "2026-11-08",
+  "config_version": "0.1-draft"
+}
