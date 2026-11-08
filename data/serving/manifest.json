@@ -1,0 +1,30 @@
+{
+  "periods": {
+    "t100_summary": "2019-01..2026-07",
+    "delay_causes": "2024-01..2026-07",
+    "t100_segment": "2025-08..2026-07"
+  },
+  "window": {
+    "current": "2025-08..2026-07",
+    "prior": "2024-08..2025-07",
+    "baseline_year": 2019
+  },
+  "coverage": {
+    "airports": 667,
+    "in_universe": 180,
+    "in_universe_with_delay_data": 178,
+    "universe_min_passengers_12m": 250000
+  },
+  "row_counts": {
+    "airports": 667,
+    "airport_month": 59025,
+    "routes": 197301
+  },
+  "checks": {
+    "duplicate_keys": "pass",
+    "named_airports": "pass",
+    "reconciliation": "pass"
+  },
+  "build_date": "2026-11-08",
+  "config_version": "0.1-draft"
+}

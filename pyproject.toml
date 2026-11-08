@@ -1,0 +1,23 @@
+[project]
+name = "airport-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas",
+    "pyarrow",
+    "numpy",
+    "pyyaml",
+    "pydantic",
+    "requests",
+    "google-genai",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+addopts = "--import-mode=importlib"

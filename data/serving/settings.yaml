@@ -1,0 +1,26 @@
+score_version: 0.1-draft
+window_months: 12
+baseline_year: 2019
+universe_min_passengers_12m: 250000
+size_bands:
+  large: 10000000
+  medium: 3000000
+  small: 1000000
+  nonhub: 0
+usable_runway_min_ft: 3000
+long_haul_cutoffs:
+- 2000
+- 2500
+- 3000
+long_haul_default: 3000
+weights:
+  growth: 0.4
+  load_factor: 0.35
+  congestion: 0.25
+robustness:
+  draws: 500
+  seed: 42
+  concentration: 20
+  top_k: 3
+load_factor_ceiling: 0.85
+cargo_heavy_pct: 30

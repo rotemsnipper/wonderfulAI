@@ -1,0 +1,51 @@
+# Every numeric choice lives here. Change a value, bump score_version, rebuild.
+# Tags on each key:
+#   [spike]       value observed or confirmed in the data spike
+#   [decision]    value fixed by the MVP decisions in MasterDesign.md
+#   [PLACEHOLDER] first guess, must be reviewed once real data is built (M1-H)
+
+score_version: "0.1-draft"
+
+# Window: rolling months ending at the latest month present in all required sources. [decision]
+window_months: 12
+# Growth baseline: the last full calendar year before 2020. [decision]
+# Compound growth from baseline = (current_12m / baseline_12m) ** (1 / years) - 1
+# where years = months between the baseline year's last month (2019-12) and the window's last month, divided by 12.
+baseline_year: 2019
+
+# Universe: airports with at least this many passengers in the current window. [spike]
+# 184 airports qualify on the real data; Bangor is in, Worcester/Nantucket/Hyannis/Portsmouth are out.
+universe_min_passengers_12m: 250000
+
+# Size tiers by 12-month passengers (displayed grouping only, not scored). [PLACEHOLDER]
+size_bands:
+  large: 10000000
+  medium: 3000000
+  small: 1000000
+  nonhub: 0
+
+# Runways shorter than this (or closed) are not counted as usable. [spike]
+usable_runway_min_ft: 3000
+
+# Long-haul. [decision]
+long_haul_cutoffs: [2000, 2500, 3000]
+long_haul_default: 3000
+
+# Score weights (growth, load factor, congestion). Must sum to 1. [PLACEHOLDER]
+weights:
+  growth: 0.40
+  load_factor: 0.35
+  congestion: 0.25
+
+# Robustness of rankings to the weights. [decision]
+robustness:
+  draws: 500
+  seed: 42
+  concentration: 20
+  top_k: 3
+
+# Practical load-factor ceiling used for the seat gap. [decision]
+load_factor_ceiling: 0.85
+
+# Cargo-heavy warning: share of departures in cargo classes (G and P) at or above this percent. [PLACEHOLDER]
+cargo_heavy_pct: 30
