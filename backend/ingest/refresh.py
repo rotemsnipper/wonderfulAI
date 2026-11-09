@@ -66,7 +66,8 @@ def refresh(raw: Path = RAW_DIR, out: Path = SERVING_DIR, fetch=fetch_all, build
         progress("building the serving data")
         manifest = build_fn(new_raw, new_out)
         result = {"old_window": old, "new_window": manifest["window"],
-                  "checks": [{"name": c["name"], "passed": c["passed"]} for c in manifest.get("checks", [])]}
+                  "checks": [{"name": name, "passed": status == "pass"}
+                             for name, status in manifest.get("checks", {}).items()]}
         if manifest["window"]["current"] == old["current"]:
             return {"status": "no_newer_data", **result}
         for current, new in ((raw, new_raw), (out, new_out)):

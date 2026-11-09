@@ -29,7 +29,7 @@ def fake_build(window):
     def build(raw, out):
         out.mkdir(parents=True)
         (out / "manifest.json").write_text(json.dumps({"window": window}))
-        return {"window": window, "checks": [{"name": "keys", "passed": True}]}
+        return {"window": window, "checks": {"keys": "pass"}}  # the shape build_manifest writes
     return build
 
 
