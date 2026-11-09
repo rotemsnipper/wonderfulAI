@@ -124,7 +124,8 @@ def _same_subject(subject: str, last: str | None) -> bool:
 def _subject(kind: str, env: dict) -> str:
     if kind == "ranking":
         inputs = env.get("inputs") or {}
-        return "ranking:" + ",".join(f"{k}={inputs.get(k)}" for k in ("region", "state", "size_tier", "metric"))
+        states = "+".join(inputs.get("states") or []) or None
+        return f"ranking:states={states}," + ",".join(f"{k}={inputs.get(k)}" for k in ("size_tier", "metric"))
     if kind == "trend":
         return f"trend:{env['result']['code']}:{env['result']['metric']}"
     return f"{kind}:" + ",".join(sorted(env["meta"]["airports"]))
@@ -184,18 +185,21 @@ def _details(kind: str, env: dict, rows: list[dict], investment: bool) -> str:
         names = {"passenger_growth": "passenger growth", "load_factor": "load factor",
                  "flight_growth": "flight growth", "congestion": "congestion"}
         used = ", ".join(f"{names.get(k, k)} {v * 100:.0f}%" for k, v in res["weights_used"].items())
-        return f"*Custom weights: {used} (default: equal weights).*\n\n" + _details(kind, {**env, "result": {
-            k: v for k, v in res.items() if k != "weights_used"}}, rows, investment)
+        default = ", ".join(f"{v * 100:.0f}%" for v in res["default_weights"].values())
+        return f"*Custom weights: {used} (default: {default}).*\n\n" + _details(kind, {**env, "result": {
+            k: v for k, v in res.items() if k not in ("weights_used", "default_weights")}}, rows, investment)
+    states = (res.get("filters") or {}).get("states") if kind == "ranking" else None
+    prefix = f"*States: {', '.join(states)}*\n\n" if states else ""
     if kind == "ranking" and res["metric"] != "score":
         label = next((d["label"] for d in env.get("definitions") or []), res["ranked_by"])
         head = f"| Rank | Airport | Size tier | {label} |\n|---|---|---|---|"
-        return "\n".join([head] + [f"| {r['rank']} | {r['name']} ({r['code']}) | {r['size_tier']} | {r['display']} |"
+        return prefix + "\n".join([head] + [f"| {r['rank']} | {r['name']} ({r['code']}) | {r['size_tier']} | {r['display']} |"
                                    for r in rows])
     shown = sorted(rows, key=lambda r: r["rank"])[:DETAIL_TOP] if kind == "ranking" else rows
     out = _detail_grid(env, shown, kind == "profile", investment) + (_strengths(shown) if investment else "")
     if kind == "ranking":
         out += "\n\n*All ranked airports, by size tier*\n\n" + _score_tables(res, rows)
-    return out
+    return prefix + out
 
 
 def _detail_grid(env: dict, rows: list[dict], percentiles: bool, scores_shown: bool) -> str:

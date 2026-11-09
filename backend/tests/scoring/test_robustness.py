@@ -40,7 +40,7 @@ def test_same_seed_gives_same_output():
 
 
 def test_runs_on_fixture_scores_with_config():
-    settings = load_settings()
+    settings = load_settings(FIXTURE / "settings.yaml")
     scores = score_all(load_store(FIXTURE), settings)
     out = robustness(list(scores.values()), settings["weights"], settings)
     assert out["draws"] == settings["robustness"]["draws"]

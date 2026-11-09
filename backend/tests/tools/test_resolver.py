@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 
-from backend.tools import resolver as resolver_module
 from backend.tools.resolver import Resolver
 from backend.tools.store import load_store
 
@@ -41,11 +40,11 @@ def test_many_matches_list_at_most_three_largest(resolver):
     assert r["more_matches"] == 1 and "SAA" not in r["ask"]
 
 
-def test_abbreviation_expands_to_its_city_not_to_name_words(monkeypatch, resolver):
-    # without the expansion "LA" would match airports with "La" in their name
-    monkeypatch.setitem(resolver_module.ABBREVIATIONS, "LK", "Lakeshore")
-    r = resolver.resolve("lk")
-    assert r["status"] == "resolved" and r["code"] == "LAA"
+def test_short_abbreviation_is_not_matched_to_name_words_and_asks_for_the_full_name(monkeypatch, resolver):
+    # on the real data "LA" matched Durango-La Plata
+    monkeypatch.setitem(resolver.vocab, "la", {"LAA"})
+    r = resolver.resolve("LA")
+    assert r["status"] == "not_found" and "full city or airport name" in r["retry_hint"]
 
 
 def test_unknown_airport_not_found(resolver):

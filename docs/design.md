@@ -46,14 +46,15 @@ flowchart LR
 
 | Side | Component | Raw metric (12-month window) | Weight |
 |---|---|---|---|
-| Passenger | passenger growth | compound annual passenger growth since 2019 | 0.25 |
-| Passenger | load factor | passengers / seats | 0.25 |
-| Flight | flight growth | compound annual departures growth since 2019 | 0.25 |
-| Flight | congestion | arrival system-delay (NAS) rate | 0.25 |
+| Passenger | passenger growth | compound annual passenger growth since 2019 | 0.30 |
+| Passenger | load factor | passengers / seats | 0.30 |
+| Flight | flight growth | compound annual departures growth since 2019 | 0.20 |
+| Flight | congestion | arrival system-delay (NAS) rate | 0.20 |
 
 **Score**
 - Each metric becomes a national rank percentile across the 180 airports. Percentiles resist outliers and make different units comparable.
 - The total score (0 to 100) is the weighted sum of the four percentiles. The passenger and flight scores show which kind of capacity is under pressure.
+- The passenger side carries 60%: terminals are sized by passenger throughput, and congestion (NAS delay) is partly airside (runways, ATC), which a terminal renovation does not fix.
 - Rates come from counts summed over the window. All weights and thresholds live in `config/settings.yaml`.
 
 **Missing data is never imputed.** An airport missing a component gets a partial score that is never labeled or compared with full scores. In this build that applies to DJT and HVN, which have no delay data.
@@ -70,7 +71,7 @@ flowchart LR
 
 Strengths are components at or above the 70th percentile; weaknesses are below the 40th.
 
-**Robustness**: equal weights are a choice, so each ranking reports how much it depends on them. The check re-ranks the airports under 500 random weight vectors drawn around the defaults (Dirichlet, concentration 20, seed 42). An airport is **robust** if it stays in the top 3 in at least 80% of draws, **sensitive** from 20%, and **rarely in top** below that.
+**Robustness**: the weights are a judgment call, so each ranking reports how much it depends on them. The check re-ranks the airports under 500 random weight vectors drawn around the defaults (Dirichlet, concentration 20, seed 42). An airport is **robust** if it stays in the top 3 in at least 80% of draws, **sensitive** from 20%, and **rarely in top** below that.
 
 **Custom weights**: the user can re-rank with a different emphasis, such as "growth counts twice as much". Code normalizes the weights and reports each airport's default rank, so the model never works out a rank change. The report marks the result as a sensitivity check.
 
@@ -138,7 +139,7 @@ A factual question, such as an airport's size, delays or trend, gets the same re
 | Code writes tables and fixed sections | Two sources for one number eventually disagree; the model does what it is good at: choosing and explaining. |
 | Capacity need as a proxy for profit | No public cost, gate or revenue data; the proxy is named in every report. |
 | Rank percentiles, not z-scores | Robust to a few very large or very congested airports. |
-| Equal weights plus a robustness check | No ground truth to tune weights against; the check shows when a ranking depends on them. |
+| Passenger-tilted weights plus a robustness check | Terminals are sized by passengers; no ground truth to tune weights against, so the check shows when a ranking depends on them. |
 | No imputation | A guessed congestion value would rank an airport on invented data. |
 | The resolver never guesses | A wrong Portland gives a confident answer about the wrong airport; asking costs one turn. |
 | Evals graded by code | Repeatable, free and exact on what matters: airports, labels, sections, numbers. |
@@ -161,7 +162,7 @@ A factual question, such as an airport's size, delays or trend, gets the same re
   - The score says nothing about cost or return.
   - Growth is historical.
   - NAS delays mix congestion with weather and cover the larger airlines only.
-  - Only New England is a named region; other filters are by state and size tier.
+  - The model reads region names and nicknames (a region becomes a list of states, "Philly" becomes Philadelphia); the report names the states it used so the reader can check them.
 - **Next steps**:
   - forecast-based growth;
   - a composite congestion measure (taxi-out, per-runway load);

@@ -21,9 +21,6 @@ from backend.tools.store import Store, load_store
 
 log = logging.getLogger(__name__)
 
-REGIONS = {
-    "new_england": ["CT", "ME", "MA", "NH", "RI", "VT"],
-}
 RANK_METRICS = ["score", "passenger_growth", "flight_growth", "load_factor", "congestion", "delay_rate", "passengers"]
 PER_GROUP_CAP = 10
 TOP_COMPARED = 3
@@ -279,7 +276,7 @@ def _weights(defaults: dict, given: dict) -> dict | str:
     return {n: merged[n] / total for n in COMPONENTS}
 
 
-def rank_airports(region: str | None = None, state: str | None = None, size_tier: str | None = None,
+def rank_airports(states: list[str] | None = None, size_tier: str | None = None,
                   metric: str = "score", limit: int = PER_GROUP_CAP, w_passenger_growth: float | None = None,
                   w_load_factor: float | None = None, w_flight_growth: float | None = None,
                   w_congestion: float | None = None) -> dict:
@@ -292,15 +289,13 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
         return error_result(f"weights apply only to metric 'score', not {metric!r}; drop the weights or use 'score'",
                             ["score"])
     tiers = list(c.settings["size_bands"])
-    if region is not None and region not in REGIONS:
-        return error_result(f"unknown region {region!r}", list(REGIONS))
-    states = sorted(set(c.airports["state"]))
-    if state is not None:
-        state = str(state).strip().upper()
-        if state not in states:
-            return error_result(f"unknown state {state!r}; use the two-letter code", states)
-        if region is not None and state not in REGIONS[region]:
-            return error_result(f"state {state} is not in region {region}; give one or the other", [])
+    known = sorted(set(c.airports["state"]))
+    if states is not None:
+        states = sorted({str(x).strip().upper() for x in states})
+        unknown = [x for x in states if x not in known]
+        if unknown:
+            return error_result(f"unknown state codes {unknown}; use two-letter US state codes", known)
+        states = states or None
     if size_tier is not None and size_tier not in tiers + ["all"]:
         return error_result(f"unknown size tier {size_tier!r}", tiers + ["all"])
     if metric not in RANK_METRICS:
@@ -310,10 +305,8 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
         return error_result(f"limit must be a whole number from 1 to {PER_GROUP_CAP}", [])
 
     pool = [code for code in c.scores]
-    if region:
-        pool = [x for x in pool if c.airports.loc[x, "state"] in REGIONS[region]]
-    if state:
-        pool = [x for x in pool if c.airports.loc[x, "state"] == state]
+    if states:
+        pool = [x for x in pool if c.airports.loc[x, "state"] in states]
     if size_tier and size_tier != "all":
         pool = [x for x in pool if c.airports.loc[x, "size_tier"] == size_tier]
     if not pool:
@@ -369,7 +362,7 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
         return {"code": x, "reason": f"{key_name} not available", "partial_score": None}
 
     result = {
-        "metric": metric, "ranked_by": key_name, "filters": {"region": region, "state": state, "size_tier": size_tier},
+        "metric": metric, "ranked_by": key_name, "filters": {"states": states, "size_tier": size_tier},
         "covered_airports_in_filter": len(pool), "groups": groups, "list_was_cut": bool(cut), "cut_airports": cut,
         "not_ranked": [not_ranked(x) for x in unranked],
         "note": "Ranks are within the filter; size tiers are shown for grouping and are not part of the score.",
@@ -389,7 +382,7 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
     codes = shown_codes + unranked
     defs = (["total_score", "compound_growth_pct_per_year", "load_factor", "departures_compound_growth_pct_per_year",
              "system_delay_rate_pct"] if metric == "score" else [key_name])
-    inputs = {"region": region, "state": state, "size_tier": size_tier, "metric": metric, "limit": limit}
+    inputs = {"states": states, "size_tier": size_tier, "metric": metric, "limit": limit}
     if any_weight:
         inputs.update({f"w_{n}": v for n, v in given.items()})
     return _envelope("rank_airports", inputs, result, codes, defs)

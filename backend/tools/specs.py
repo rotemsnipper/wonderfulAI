@@ -1,28 +1,32 @@
 """JSON schemas the model sees for the tools. Flat, with enums, so free-tier tool calling stays reliable."""
 from backend.config import SERVING_DIR, load_settings
-from backend.tools.tools import MAX_COMPARE, PER_GROUP_CAP, RANK_METRICS, REGIONS
+from backend.tools.tools import MAX_COMPARE, PER_GROUP_CAP, RANK_METRICS
 
 _settings = load_settings(SERVING_DIR / "settings.yaml")
+_w = _settings["weights"]
 
 TOOL_SPECS: list[dict] = [
     {
         "name": "resolve_airport",
         "description": (
-            "Turn an airport name, city, nickname or code into an airport code. Call this first whenever the user "
-            "does not give a three-letter code. Status 'ambiguous' means ask the user to choose; 'not_found' means "
-            "the airport is not in our data. Do not use it for whole states or regions; use rank_airports filters."
+            "Turn an airport name, city or code into an airport code. Call this first whenever the user does not "
+            "give a three-letter code. Pass the full city or airport name, not an abbreviation or nickname; expand "
+            "it first. Status 'ambiguous' means ask the user to choose; 'not_found' means retry once as its "
+            "retry_hint says, then the airport is not in our data. Do not use it for whole states or regions; use "
+            "the rank_airports states filter."
         ),
         "parameters": {
             "type": "object",
-            "properties": {"query": {"type": "string", "description": "the place or airport as the user wrote it"}},
+            "properties": {"query": {"type": "string",
+                                     "description": "the full city or airport name, or a three-letter code"}},
             "required": ["query"],
         },
     },
     {
         "name": "rank_airports",
         "description": (
-            "Rank covered airports by capacity-need score (default) or by one metric, optionally within a region, "
-            "a state or a size tier. Use for 'which airports' questions. Score rows carry the passenger and flight "
+            "Rank covered airports by capacity-need score (default) or by one metric, optionally within a set of US "
+            "states or a size tier. Use for 'which airports' questions. Score rows carry the passenger and flight "
             "side scores, the label (potential, confidence, recommendation), strengths and weaknesses. Results are "
             "grouped by size tier and include a robustness verdict for score rankings. To compare named airports "
             "use compare_airports."
@@ -30,21 +34,21 @@ TOOL_SPECS: list[dict] = [
         "parameters": {
             "type": "object",
             "properties": {
-                "region": {"type": "string", "enum": list(REGIONS)},
-                "state": {"type": "string", "description": "two-letter US state code, for example ME"},
+                "states": {"type": "array", "items": {"type": "string"}, "description": (
+                    "two-letter US state codes to rank within; for a named region pass the codes of its states")},
                 "size_tier": {"type": "string", "enum": list(_settings["size_bands"]) + ["all"]},
                 "metric": {"type": "string", "enum": RANK_METRICS},
                 "limit": {"type": "integer", "minimum": 1, "maximum": PER_GROUP_CAP,
                           "description": "airports per size tier"},
                 "w_passenger_growth": {"type": "number", "minimum": 0, "description": (
-                    "optional custom weight for passenger growth (default 0.25), only with metric score; given "
+                    f"optional custom weight for passenger growth (default {_w['passenger_growth']}), only with metric score; given "
                     "weights replace the defaults and all four are normalized to sum to 1")},
                 "w_load_factor": {"type": "number", "minimum": 0,
-                                  "description": "optional custom weight for load factor (default 0.25), only with metric score"},
+                                  "description": f"optional custom weight for load factor (default {_w['load_factor']}), only with metric score"},
                 "w_flight_growth": {"type": "number", "minimum": 0,
-                                    "description": "optional custom weight for flight growth (default 0.25), only with metric score"},
+                                    "description": f"optional custom weight for flight growth (default {_w['flight_growth']}), only with metric score"},
                 "w_congestion": {"type": "number", "minimum": 0,
-                                 "description": "optional custom weight for congestion (default 0.25), only with metric score"},
+                                 "description": f"optional custom weight for congestion (default {_w['congestion']}), only with metric score"},
             },
         },
     },

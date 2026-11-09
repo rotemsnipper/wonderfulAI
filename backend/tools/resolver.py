@@ -1,7 +1,7 @@
 """Resolve an airport code, name or city to airport code(s) without guessing.
 
-Order: exact code, then name and city words.
-A few common abbreviations ("LA", "NYC") are expanded to their city first. When several
+Order: exact code, then name and city words. Abbreviations and nicknames are not expanded here: a
+not_found result tells the model to retry with the full name. When several
 airports match, nothing is picked: the user is asked to choose from the largest MAX_CHOICES matches, listed
 by 12-month passengers, largest first. Only covered airports are offered when any covered airport matches.
 """
@@ -11,9 +11,11 @@ from backend.tools.store import Store
 
 NOISE_WORDS = {"airport", "airports", "international", "intl", "intl.", "the", "regional", "municipal", "of", "in", "at"}
 MAX_CHOICES = 3
-# Abbreviations that match no name or city as written ("LA" would hit "La Crosse"); each maps to a city,
-# then normal city matching applies.
-ABBREVIATIONS = {"LA": "Los Angeles", "NYC": "New York", "SF": "San Francisco", "DC": "Washington"}
+# A query this short is an abbreviation, not a code (codes have three letters); matching it against name
+# words gives confident wrong answers ("LA" matched Durango-La Plata).
+MIN_WORD_QUERY = 3
+RETRY_HINT = ("If the query was an abbreviation or nickname, call resolve_airport again with the full city or "
+              "airport name; ask the user only if that also finds nothing.")
 
 
 def _words(text: str) -> list[str]:
@@ -76,7 +78,7 @@ class Resolver:
 
     def _not_found(self, query: str) -> dict:
         return self._result(query, "not_found", [], message=f"No covered airport matches '{query}'.",
-                            ask="Please give the airport code or the full airport name.")
+                            ask="Please give the airport code or the full airport name.", retry_hint=RETRY_HINT)
 
     def resolve(self, query: str) -> dict:
         raw = (query or "").strip()
@@ -85,8 +87,8 @@ class Resolver:
         up = raw.upper()
         if re.fullmatch(r"[A-Za-z]{3}", raw) and up in self.codes:
             return self._resolved(raw, up)
-        words = _words(ABBREVIATIONS.get(up, raw))
-        if words:
+        words = _words(raw)
+        if words and len("".join(words)) >= MIN_WORD_QUERY:
             sets = [self.vocab.get(w, set()) for w in words]
             matched = set.intersection(*sets) if all(sets) else set()
             if matched:

@@ -12,6 +12,7 @@ from backend.tools.store import load_store
 SERVING = REPO_ROOT / "data" / "serving"
 EXPECTED = REPO_ROOT / "scripts" / "recompute" / "expected.json"
 TOL = 1e-6
+NEW_ENGLAND = ["CT", "MA", "ME", "NH", "RI", "VT"]
 
 pytestmark = pytest.mark.skipif(not (SERVING / "manifest.json").exists() or not EXPECTED.exists(),
                                 reason="real serving data or expected.json not built")
@@ -36,7 +37,7 @@ def resolved(query):
 
 
 def test_q1_new_england_ranking_is_usable():
-    r = tools.call("rank_airports", {"region": "new_england"})
+    r = tools.call("rank_airports", {"states": NEW_ENGLAND})
     rows = [row for rows in r["result"]["groups"].values() for row in rows]
     assert {"BOS", "PWM", "BGR"} <= {row["code"] for row in rows}
     assert r["result"]["robustness"]["summary"].startswith("Robustness:")
@@ -44,7 +45,7 @@ def test_q1_new_england_ranking_is_usable():
 
 
 def test_q1_new_england_departures_growth_matches(expected):
-    r = tools.call("rank_airports", {"region": "new_england"})
+    r = tools.call("rank_airports", {"states": NEW_ENGLAND})
     codes = [row["code"] for rows in r["result"]["groups"].values() for row in rows]
     codes += [x["code"] for x in r["result"]["not_ranked"]]
     assert set(codes) == set(expected["q1"])
@@ -55,7 +56,7 @@ def test_q1_new_england_departures_growth_matches(expected):
 
 
 def test_q1_new_england_labels_never_rate_partial_data():
-    r = tools.call("rank_airports", {"region": "new_england"})
+    r = tools.call("rank_airports", {"states": NEW_ENGLAND})
     rows = [row for rows in r["result"]["groups"].values() for row in rows]
     assert all(row["score"]["potential"] != "not scored" for row in rows)
     hvn = tools.call("airport_profile", {"code": "HVN"})["result"]["score"]
@@ -63,7 +64,7 @@ def test_q1_new_england_labels_never_rate_partial_data():
 
 
 def test_q2_names_resolve_and_figures_match(expected):
-    codes = [resolved("LA"), resolved("Santa Ana")]
+    codes = [resolved("Los Angeles"), resolved("Santa Ana")]
     assert codes == ["LAX", "SNA"]
     r = tools.call("compare_airports", {"codes": codes})
     by = {a["code"]: a for a in r["result"]["airports"]}

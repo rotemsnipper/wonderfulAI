@@ -11,7 +11,7 @@ FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "serving"
 
 @pytest.fixture(scope="module")
 def settings():
-    return load_settings()
+    return load_settings(FIXTURE / "settings.yaml")
 
 
 @pytest.fixture(scope="module")

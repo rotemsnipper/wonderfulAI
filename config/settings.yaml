@@ -4,7 +4,7 @@
 #   [decision]    value fixed by the MVP decisions in MasterDesign.md
 #   [PLACEHOLDER] first guess, must be reviewed once real data is built (M1-H)
 
-score_version: "0.2-draft"
+score_version: "0.3-draft"
 
 # Window: rolling months ending at the latest month present in all required sources. [decision]
 window_months: 12
@@ -32,12 +32,14 @@ long_haul_cutoffs: [2000, 2500, 3000]
 long_haul_default: 3000
 
 # Score weights. Must sum to 1. Passenger side: passenger_growth + load_factor; flight side:
-# flight_growth + congestion. Equal weights give each side half the score. [decision]
+# flight_growth + congestion. The passenger side carries 60%: terminals are sized by passenger
+# throughput, and congestion (NAS delay) is partly airside (runways, ATC), which a terminal
+# renovation does not fix. [decision]
 weights:
-  passenger_growth: 0.25
-  load_factor: 0.25
-  flight_growth: 0.25
-  congestion: 0.25
+  passenger_growth: 0.30
+  load_factor: 0.30
+  flight_growth: 0.20
+  congestion: 0.20
 
 # Fixed-rule label on the 0-100 score and component percentiles. [PLACEHOLDER]
 # Potential: High at high_min or more, Medium from medium_min, Low below; partial scores are not labeled.

@@ -94,6 +94,11 @@ def test_custom_weights_are_named_in_the_details_and_assumptions_only_when_used(
     assert "Custom weights" not in default.markdown
 
 
+def test_ranking_within_states_names_the_states_so_the_reader_can_check_the_region():
+    r = build([call("rank_airports", {"states": ["or", "CA"]})])
+    assert r.section(S.DETAILS).markdown.startswith("*States: CA, OR*")
+
+
 def test_ranking_by_one_metric_shows_that_metric_and_no_robustness():
     r = build([call("rank_airports", {"metric": "load_factor"})], question="Which airports have the fullest planes?")
     assert S.ROBUSTNESS not in ids(r) and "load factor" in r.section(S.DETAILS).markdown.lower()

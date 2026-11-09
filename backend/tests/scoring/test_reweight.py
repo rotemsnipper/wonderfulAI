@@ -13,7 +13,7 @@ GROWTH_X2 = {"passenger_growth": 1 / 3, "load_factor": 1 / 6, "flight_growth": 1
 
 @pytest.fixture(scope="module")
 def settings():
-    return load_settings()
+    return load_settings(FIXTURE / "settings.yaml")
 
 
 @pytest.fixture(scope="module")

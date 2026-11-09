@@ -95,10 +95,10 @@ def test_rank_cut_flag_and_named_exclusions():
     assert "BAY" in res["cut_airports"] or "PMW" in res["cut_airports"]
 
 
-def test_rank_state_filter_and_metric():
-    r = tools.call("rank_airports", {"state": "CA", "metric": "delay_rate"})
+def test_rank_within_several_states_and_metric():
+    r = tools.call("rank_airports", {"states": ["ca", "OR"], "metric": "delay_rate"})
     rows = [row for rows in r["result"]["groups"].values() for row in rows]
-    assert {row["code"] for row in rows} == {"LAA", "SAA", "BAY"}
+    assert {row["code"] for row in rows} == {"LAA", "SAA", "BAY", "PMW"}
     bay = next(row for row in rows if row["code"] == "BAY")
     assert bay["rank"] == 1 and bay["display"] == "25.0%"
     assert "robustness" not in r["result"]
@@ -109,7 +109,12 @@ def test_rank_accepts_whole_float_limit_from_model():
 
 
 def test_rank_no_match_is_error():
-    assert is_error(tools.call("rank_airports", {"state": "NE"}))  # only TNY, which is not covered
+    assert is_error(tools.call("rank_airports", {"states": ["NE"]}))  # only TNY, which is not covered
+
+
+def test_rank_rejects_an_unknown_state_code_and_lists_the_valid_ones():
+    r = tools.call("rank_airports", {"states": ["CA", "XX"]})
+    assert is_error(r) and "XX" in r["error"] and "CA" in r["valid_options"]
 
 
 # ---- compare ----

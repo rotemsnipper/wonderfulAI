@@ -27,6 +27,50 @@
       ]
     },
     {
+      "id": "region_not_in_code",
+      "turns": [
+        "Which airports in the Pacific Northwest are strong candidates for terminal expansion?"
+      ],
+      "expected_airports": [
+        "SEA",
+        "PDX"
+      ],
+      "required": [
+        "States: [A-Z, ]*OR, WA"
+      ],
+      "forbidden": [],
+      "number_check": true,
+      "rules": [
+        "R2",
+        "R3"
+      ],
+      "expect_modes": [
+        "report:ranking"
+      ],
+      "notes": "No region list in code: the model passes the region's state codes and the report names them."
+    },
+    {
+      "id": "nickname_not_in_code",
+      "turns": [
+        "How congested is Philly airport?"
+      ],
+      "expected_airports": [
+        "PHL"
+      ],
+      "required": [
+        "(?i)delay"
+      ],
+      "forbidden": [],
+      "number_check": true,
+      "rules": [
+        "R2"
+      ],
+      "expect_modes": [
+        "report:profile"
+      ],
+      "notes": "No abbreviation list in code: the model expands the nickname, or retries after not_found."
+    },
+    {
       "id": "q2_lax_sna",
       "turns": [
         "Compare LA and Santa Ana airport congestion levels."
@@ -485,7 +529,7 @@
       "id": "report_then_follow_ups",
       "turns": [
         "Which airports in New England are strong candidates for terminal expansion?",
-        "Why is PWM sensitive to the weights?",
+        "Why is PWM robust to the weights?",
         "Compare BGR and PWM."
       ],
       "expected_airports": [
