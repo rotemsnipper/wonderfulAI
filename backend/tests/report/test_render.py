@@ -30,7 +30,7 @@ def call(name, args):
 
 
 def build(trace, text=MODEL_TEXT, question="Which airports should expand their terminals?", last=None, outcome=PASSED):
-    return build_report(trace, text, question, footer(trace, text), collect_warnings(trace), outcome, last)
+    return build_report(trace, text, question, footer(trace), collect_warnings(trace), outcome, last)
 
 
 def ids(report):

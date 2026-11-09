@@ -5,13 +5,14 @@ A trace is a list of tool calls: {"tool": name, "args": dict, "result": envelope
 tool call. Envelopes follow the shared tool result envelope (MasterDesign "Schemas"); an error result
 has an "error" key and is ignored here.
 
-Confidence rules (fixed, never the model's opinion):
+Confidence rules (fixed, never the model's opinion; they read the tool results only, never the answer text,
+and agree with each airport's label confidence):
 - n/a: no data was used.
-- Low: partial or thin data for an airport the answer mentions, outside a ranking.
-- Medium: a proxy is used; in a ranking, weak airports also give Medium and are named.
-- High: otherwise.
+- Low: partial or thin data for an airport in the answer's data, outside a ranking.
+- Medium: in a ranking, airports with partial data (named); an airport whose label confidence is medium
+  (a data warning such as cargo-heavy traffic); or live FAA status.
+- High: otherwise. Proxy measures do not lower it; they are listed under assumptions in every report.
 """
-import re
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 WEAK_TIERS = {"partial", "thin"}
@@ -28,16 +29,6 @@ def _data_envelopes(trace: list[dict]) -> list[dict]:
     return [t for t in _envelopes(trace) if t["result"].get("meta", {}).get("airports") and t["tool"] != "resolve_airport"]
 
 
-def _codes_in(answer: str) -> set[str]:
-    return set(re.findall(r"\b[A-Z]{3}\b", answer or ""))
-
-
-def _mentioned_airports(trace: list[dict], answer: str) -> set[str]:
-    involved = {c for t in _data_envelopes(trace) for c in t["result"]["meta"]["airports"]}
-    mentioned = involved & _codes_in(answer)
-    return mentioned or involved
-
-
 def _weak_airports(trace: list[dict]) -> set[str]:
     weak = set()
     for t in _data_envelopes(trace):
@@ -49,29 +40,31 @@ def _weak_airports(trace: list[dict]) -> set[str]:
     return weak
 
 
-def confidence(trace: list[dict], answer: str) -> tuple[str, str]:
+def confidence(trace: list[dict]) -> tuple[str, str]:
     data = _data_envelopes(trace)
     if not data:
         return "n/a", "no data was used for this answer"
-    weak = sorted(_mentioned_airports(trace, answer) & _weak_airports(trace))
+    weak = sorted(_weak_airports(trace))
     is_ranking = any(t["tool"] in RANKING_TOOLS for t in data)
     if weak and not is_ranking:
         return "low", f"partial or thin data for {', '.join(weak)}"
     reasons = []
     if weak:
         reasons.append(f"partial or thin data for some airports ({', '.join(weak)})")
-    if any(t["result"].get("meta", {}).get("uses_proxy") for t in data):
-        reasons.append("a proxy measure is used")
+    warned = sorted({code for t in data for code, q in (t["result"].get("data_quality") or {}).items()
+                     if q.get("confidence") == "medium"} - set(weak))
+    if warned:
+        reasons.append(f"data warnings for {', '.join(warned)}")
     if any(t["tool"] == "faa_airport_status" for t in data):
         reasons.append("live FAA status changes minute by minute and is not checked against our data")
     if reasons:
         return "medium", "; ".join(reasons)
-    return "high", "full data and direct measures for every airport in the answer"
+    return "high", "full data for every airport in the answer"
 
 
-def footer(trace: list[dict], answer: str) -> dict:
+def footer(trace: list[dict]) -> dict:
     data = _data_envelopes(trace)
-    label, reason = confidence(trace, answer)
+    label, reason = confidence(trace)
     periods = {}
     for t in data:
         for source, period in (t["result"].get("meta", {}).get("periods") or {}).items():

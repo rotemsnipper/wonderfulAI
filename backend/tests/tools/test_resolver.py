@@ -47,6 +47,11 @@ def test_short_abbreviation_is_not_matched_to_name_words_and_asks_for_the_full_n
     assert r["status"] == "not_found" and "full city or airport name" in r["retry_hint"]
 
 
+def test_code_with_noise_words_resolves(resolver):
+    r = resolver.resolve("LAA airport")
+    assert r["status"] == "resolved" and r["code"] == "LAA"
+
+
 def test_unknown_airport_not_found(resolver):
     r = resolver.resolve("Atlantis Spaceport")
     assert r["status"] == "not_found" and r["candidates"] == []

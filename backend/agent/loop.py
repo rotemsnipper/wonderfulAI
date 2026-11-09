@@ -29,8 +29,11 @@ EMPTY_TEXT = "I could not produce an answer to that. Please try rephrasing the q
 MODEL_ERROR_TEXT = "The model is not available right now, so this question was not answered. Please try again."
 # refresh_data replaces the dataset, so it runs only when the user's own words ask for it (code, not the prompt).
 REFRESH_TOOL = "refresh_data"
-_REFRESH_VERB = r"\b(update|refresh|reload|re-?download)\b"
-REFRESH_REQUEST = re.compile(rf"(?is){_REFRESH_VERB}.*\bdata(set)?\b|\bdata(set)?\b.*{_REFRESH_VERB}")
+# A request is the verb acting on the data ("update the data"), not the noun ("the latest data update").
+REFRESH_REQUEST = re.compile(r"(?i)\b(update|refresh|reload|re-?download)\s+(the\s+|our\s+|your\s+)?data(set)?\b")
+REFRESH_OFFER = re.compile(r"(?i)\b(update|refresh|reload|re-?download)\b.*\bdata(set)?\b.*\?\s*$", re.S)
+NEGATION = re.compile(r"(?i)\b(no|not|don'?t|never|stop|cancel|keep)\b")
+AFFIRMATIVE = re.compile(r"(?i)^\s*(yes|yeah|yep|sure|ok(ay)?|please|go ahead|do it)\b")
 REFRESH_REFUSED = ("refresh_data runs only when the user asks to update or refresh the data. Tell the user what "
                    "check_data_updates found and ask whether they want the data updated.")
 
@@ -68,7 +71,7 @@ class Agent:
             return reply
 
         try:
-            answer, rounds, capped = self._rounds(ask, msgs, trace, self._asked_text(previous, question))
+            answer, rounds, capped = self._rounds(ask, msgs, trace, self._refresh_requested(previous, question))
             outcome = {"status": "passed", "unverified": [], "rounds": rounds, "capped": capped}
             pool_now = pool | pool_from_trace(trace)
             allowed = f"{question}\n{self.system}"
@@ -76,7 +79,7 @@ class Agent:
 
             def check(text: str) -> tuple[list[str], list[str]]:
                 missing = unverified_numbers(text, pool_now, allowed)
-                wrong = [n for n in misattributed_numbers(text, all_trace, allowed) if n not in missing]
+                wrong = [n for n in misattributed_numbers(text, all_trace, question, self.system) if n not in missing]
                 return missing, wrong
 
             bad, wrong = check(answer)
@@ -107,7 +110,7 @@ class Agent:
 
         msgs.append({"role": "assistant", "content": answer})
         used_trace = trace or self._reused_trace(previous, answer)
-        turn_footer = footer(used_trace, answer)
+        turn_footer = footer(used_trace)
         warnings = collect_warnings(used_trace)
         last_subject = next((t.report["subject"] for t in reversed(previous) if t.report), None)
         report = build_report(trace, answer, self._report_question(previous, question), turn_footer, warnings,
@@ -129,7 +132,7 @@ class Agent:
         self.on_event("done", {"status": outcome["status"]})
         return {**turn.to_dict(), "saved": True}
 
-    def _rounds(self, ask, msgs: list[dict], trace: list[dict], asked: str) -> tuple[str, int, bool]:
+    def _rounds(self, ask, msgs: list[dict], trace: list[dict], refresh_ok: bool) -> tuple[str, int, bool]:
         """Model calls with tool use for this turn. Returns (answer text, rounds used, whether capped)."""
         rounds = 0
         while rounds < self.round_cap:
@@ -140,7 +143,7 @@ class Agent:
                              "tool_calls": [tc.to_message() for tc in reply.tool_calls]})
                 for tc in reply.tool_calls:
                     self.on_event("tool_start", {"name": tc.name, "args": tc.args})
-                    if tc.name == REFRESH_TOOL and not REFRESH_REQUEST.search(asked):
+                    if tc.name == REFRESH_TOOL and not refresh_ok:
                         result = {"error": REFRESH_REFUSED, "valid_options": []}
                     else:
                         result = self.call_tool(tc.name, tc.args)
@@ -155,12 +158,16 @@ class Agent:
         return (forced.text.strip() or EMPTY_TEXT), rounds + 1, True
 
     @staticmethod
-    def _asked_text(previous: list[Turn], question: str) -> str:
-        """The user's words, plus the assistant's question they answer ("Shall I update the data?" "Yes")."""
+    def _refresh_requested(previous: list[Turn], question: str) -> bool:
+        """The user's own words ask to update the data, or say yes to the assistant's offer to do it.
+        Any negation closes the gate ("No, do not update the data")."""
+        if NEGATION.search(question):
+            return False
+        if REFRESH_REQUEST.search(question):
+            return True
         last = previous[-1] if previous else None
-        if last and last.report is None and last.display_text.rstrip().endswith("?"):
-            return f"{last.display_text}\n{question}"
-        return question
+        offered = bool(last and last.report is None and REFRESH_OFFER.search(last.display_text.rstrip()))
+        return offered and bool(AFFIRMATIVE.search(question))
 
     @staticmethod
     def _report_question(previous: list[Turn], question: str) -> str:

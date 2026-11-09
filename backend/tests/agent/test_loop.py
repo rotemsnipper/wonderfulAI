@@ -189,7 +189,8 @@ def test_follow_up_on_the_same_subject_is_short_after_a_resume(fixture_tools):
 
 
 def test_refresh_runs_only_when_the_user_asks_to_update_the_data():
-    for question, runs in (("Is there newer data?", False), ("Please update the data.", True)):
+    for question, runs in (("Is there newer data?", False), ("Please update the data.", True),
+                           ("No, do not update the data.", False), ("What's the latest data update?", False)):
         agent, calls = make_agent(FakeModel(tool_reply(name="refresh_data"), text_reply("Done.")))
         out = agent.run_turn(InMemorySessionStore(), "u", "c", question)
         assert bool(calls) is runs, question

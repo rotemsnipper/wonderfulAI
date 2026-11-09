@@ -84,10 +84,10 @@ class Resolver:
         raw = (query or "").strip()
         if not raw:
             return self._not_found(raw)
-        up = raw.upper()
-        if re.fullmatch(r"[A-Za-z]{3}", raw) and up in self.codes:
-            return self._resolved(raw, up)
         words = _words(raw)
+        # a code alone or with noise words ("SFO", "SFO airport")
+        if len(words) == 1 and re.fullmatch(r"[a-z]{3}", words[0]) and words[0].upper() in self.codes:
+            return self._resolved(raw, words[0].upper())
         if words and len("".join(words)) >= MIN_WORD_QUERY:
             sets = [self.vocab.get(w, set()) for w in words]
             matched = set.intersection(*sets) if all(sets) else set()

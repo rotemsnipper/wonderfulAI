@@ -103,3 +103,11 @@ def test_number_moved_to_the_wrong_airport_is_caught():
     assert misattributed_numbers("LAX has a delay rate of 19.7% (LAX).", PAIR_TRACE) == []
     assert misattributed_numbers("LAX is 1.4 points above SNA.", PAIR_TRACE) == []  # two airports: not checked
     assert misattributed_numbers("SNA is below the national median of 21.7% (SNA).", PAIR_TRACE) == []
+
+
+def test_prompt_threshold_beside_an_airport_passes_only_in_a_threshold_sentence():
+    trace = [{**PAIR_TRACE[0], "result": {**PAIR_TRACE[0]["result"],
+                                          "definitions": [{"definition": "high potential at 65 or more"}]}}]
+    prompt = "Potential is high at 65 or more."
+    assert misattributed_numbers("LAX scores 65 (LAX).", trace, "", prompt) == ["65"]
+    assert misattributed_numbers("LAX is below the 65 high-potential threshold (LAX).", trace, "", prompt) == []

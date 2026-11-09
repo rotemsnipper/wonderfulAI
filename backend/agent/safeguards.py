@@ -140,6 +140,12 @@ def unverified_numbers(answer: str, pool: set[float], allowed_text: str = "") ->
 
 CODE = re.compile(r"\b[A-Z]{3}\b")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
+# Fixed numbers (thresholds, cutoffs, weights) may sit beside an airport only in a sentence about a threshold;
+# otherwise "BOS scores 65" would pass because 65 is the high-potential threshold.
+THRESHOLD_WORDS = re.compile(r"(?i)\b(threshold|ceiling|cutoff|cut-off|limit|weight(ed|s)?|"
+                             r"above|below|under|over|at least|clears?|misses|short of)\b")
+# Definition texts restate settings (weights, thresholds), not values of any airport.
+FIXED_TEXT_KEYS = {"definitions"}
 
 
 def airport_pools(trace: Iterable[dict]) -> tuple[dict[str, set[float]], set[float]]:
@@ -157,6 +163,8 @@ def airport_pools(trace: Iterable[dict]) -> tuple[dict[str, set[float]], set[flo
             here = owners | {node[k] for k in ("code", "airport") if node.get(k) in codes}
             a, b = node.get("a"), node.get("b")
             for k, v in node.items():
+                if k in FIXED_TEXT_KEYS:
+                    continue
                 own = here | {k} if k in codes else here
                 if a in codes and b in codes:  # a pair: a_* fields are a's, b_* fields b's, the rest both
                     own = own | ({a} if k.startswith("a_") else {b} if k.startswith("b_") else {a, b})
@@ -176,9 +184,11 @@ def airport_pools(trace: Iterable[dict]) -> tuple[dict[str, set[float]], set[flo
     return per, shared
 
 
-def misattributed_numbers(answer: str, trace: Iterable[dict], allowed_text: str = "") -> list[str]:
+def misattributed_numbers(answer: str, trace: Iterable[dict], allowed_text: str = "", fixed_text: str = "") -> list[str]:
     """Numbers in a sentence that names exactly one airport but match none of that airport's values (nor a value
-    tied to no airport). Catches a real figure moved to the wrong airport, which the pool check lets through."""
+    tied to no airport). Catches a real figure moved to the wrong airport, which the pool check lets through.
+    `allowed_text` (the user's question) always counts; `fixed_text` (the system prompt) only in a sentence
+    about a threshold."""
     per, shared = airport_pools(trace)
     bad: list[str] = []
     for sentence in SENTENCE_END.split(answer or ""):
@@ -186,5 +196,6 @@ def misattributed_numbers(answer: str, trace: Iterable[dict], allowed_text: str 
         if len(named) != 1:
             continue
         (code,) = named
-        bad += unverified_numbers(sentence, per[code] | shared, allowed_text)
+        allowed = f"{allowed_text}\n{fixed_text}" if THRESHOLD_WORDS.search(sentence) else allowed_text
+        bad += unverified_numbers(sentence, per[code] | shared, allowed)
     return list(dict.fromkeys(bad))

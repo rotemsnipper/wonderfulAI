@@ -94,7 +94,7 @@ TOOL_SPECS: list[dict] = [
     {
         "name": "refresh_data",
         "description": (
-            "Download the BTS and OurAirports files again and rebuild our data, about two minutes. Only when the "
+            "Download the BTS and OurAirports files again and rebuild our data, about 75 seconds. Only when the "
             "user asks to update or refresh the data. Does nothing when no newer month exists; on any failure the "
             "old data is kept. Returns the old and new data windows."
         ),

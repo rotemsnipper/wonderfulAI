@@ -104,7 +104,7 @@ Strengths are components at or above the 70th percentile; weaknesses are below t
 
 **Checks on its text**:
 - Every number must match a tool result or the user's text, within rounding.
-- A number in a sentence about one airport must be that airport's value.
+- A number in a sentence about one airport must be that airport's value; a fixed setting (a threshold or cutoff) counts there only when the sentence is about a threshold.
 - A failing answer gets one rewrite; if it still fails, the unverified numbers are flagged on screen.
 - Background knowledge is allowed only in one marked sentence with no numbers.
 - Tool results and earlier messages are treated as data, never as instructions.
@@ -123,9 +123,10 @@ Every data answer is a report with fixed, code-written sections:
 A factual question, such as an airport's size, delays or trend, gets the same report without scores, labels or the Comparison.
 
 **Confidence rules**:
-- **Low**: an airport in the answer has partial data.
-- **Medium**: a proxy is used, a ranking includes partial-data airports, or live FAA status is shown.
-- **High**: otherwise.
+They read the tool results, never the model's text, and agree with each airport's label confidence:
+- **Low**: an airport in the answer's data has partial data (outside a ranking).
+- **Medium**: a ranking includes partial-data airports, an airport has a data warning such as cargo-heavy traffic, or live FAA status is shown.
+- **High**: otherwise. Proxies do not lower it; every report lists them under assumptions.
 
 **Scope**:
 - The data is historical, and every answer states its period.
@@ -145,17 +146,18 @@ A factual question, such as an airport's size, delays or trend, gets the same re
 | Evals graded by code | Repeatable, free and exact on what matters: airports, labels, sections, numbers. |
 
 ## 7. Evaluation
-- **Unit tests**: 263, on a fixture dataset with hand-checked values, a fake model and fake network adapters.
+- **Unit tests**: 266, on a fixture dataset with hand-checked values, a fake model and fake network adapters.
 - **Independent recompute**: a script recomputes the sample-question figures from the raw files without project code.
-- **Real-model evals**: 20 code-graded cases covering:
+- **Real-model evals**: 22 code-graded cases covering:
   - the four sample questions;
   - follow-ups;
   - ambiguous names;
   - live FAA status, custom weights and trends;
   - out-of-scope and missing-data questions;
-  - prompt injection.
+  - prompt injection;
+  - a region and a nickname outside the sample questions.
 
-  All 20 passed in the latest full run (2026-11-09).
+  The latest full run (20 cases, 2026-11-09) passed before the weights moved to the passenger tilt and the resolver stopped expanding abbreviations; the cases those changes touch (New England, LA and Santa Ana, custom weights, and the two new cases) pass on their own since. A full run on the current build is still to do.
 
 ## 8. Limitations and next steps
 - **Limitations**:
