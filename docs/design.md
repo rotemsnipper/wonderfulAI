@@ -29,7 +29,7 @@ flowchart LR
 
 - **Ingest and build** (`backend/ingest/`): fetchers download the raw files. `python -m backend.ingest.build` cleans and joins them and runs checks that stop the build on failure (duplicate keys, named airports present, totals reconcile). It writes the serving folder only if every check passes.
 - **Serving dataset** (`data/serving/`): three parquet tables (`airports`, `airport_month`, `routes`), a `manifest.json` (periods, window, coverage, check results) and the settings used for the build. The running app reads only this folder and `prompts/`.
-- **Scoring and tools**: pure formulas, the score, the label, robustness, unmet demand and warnings. Four read-only data tools sit on top of them: `resolve_airport`, `rank_airports`, `compare_airports` (2 to 5 airports) and `airport_profile`. Two data-update tools call the public BTS APIs at question time: `check_data_updates` asks whether a newer month exists (about 7 seconds, changes nothing), and `refresh_data` downloads every source and rebuilds the serving data (about 75 seconds; see section 3). Every tool returns the same envelope: result, metric definitions, warnings, per-airport data quality and data periods.
+- **Scoring and tools**: pure formulas, the score, the label, robustness, unmet demand and warnings. Five read-only data tools sit on top of them: `resolve_airport`, `rank_airports` (optionally with custom weights), `compare_airports` (2 to 5 airports), `airport_profile` and `airport_trend` (one metric month by month). `faa_airport_status` reads the live FAA airport status feed. Two data-update tools call the public BTS APIs at question time: `check_data_updates` asks whether a newer month exists (about 7 seconds, changes nothing), and `refresh_data` downloads every source and rebuilds the serving data (about 75 seconds; see section 3). Every tool returns the same envelope: result, metric definitions, warnings, per-airport data quality and data periods.
 - **Agent loop**: a small hand-written loop around the Gemini API. It runs the tool calls, checks the numbers in the answer and saves the turn.
 - **Report**: turns the tool results and the model's prose into a structured answer.
 - **Chat UI**: a local, single-user Streamlit app. The sidebar holds conversations (in memory, kept while the server runs) and the sample questions. Each answer shows the report, the tool calls, a number-check badge and follow-up buttons. Input is disabled while a turn runs.
@@ -47,7 +47,7 @@ flowchart LR
 - **Covered airports**: US airports with scheduled service and at least 250,000 passengers in the window. There are 180 (out of 667 in the data), and 178 of them have delay data.
 - **Size tiers** by 12-month passengers: large (10 million or more; 30 airports), medium (3 million; 26), small (1 million; 48) and nonhub (76). Size is for grouping only, not scored.
 - **Known gaps**: New Haven (HVN) has no delay rows. Palm Beach is DJT in T-100 but PBI in the other BTS files; there is no crosswalk, so DJT has no delay data or routes. Missing data is reported as unknown, never as zero.
-- The data is historical. Answers state the period they use, and "live" questions are declined.
+- The data is historical. Answers state the period they use. The one live source is the FAA airport status feed (`nasstatus.faa.gov`), read at question time for current delays and ground stops; it is shown with its update time and never enters the score. Other "live" questions are declined.
 - **Refresh**: when the user asks to update the data, `refresh_data` downloads every source into a temporary folder and runs the same build and checks there. The new raw and serving folders replace the old ones only when every check passes and the window moved to a newer month; otherwise the current data stays. Code, not the prompt, allows the call only when the user's words ask to update or refresh the data. Answers given earlier in the conversation keep the old window, and the model says so.
 
 ## 4. Scoring methodology
@@ -86,6 +86,10 @@ flowchart LR
 - The check draws 500 weight vectors from a Dirichlet distribution centred on the default weights (concentration 20, seed 42). For each draw it re-ranks the fully scored airports in the filter, for example New England.
 - The verdict depends on how often an airport stays in the top 3: **robust** in at least 80% of draws, **sensitive** from 20%, **rarely in top** below 20%.
 
+**Custom weights**: a user can re-rank with a different emphasis ("growth counts twice as much"). `rank_airports` takes four optional weights, normalizes them to sum to 1 and re-weights the same percentiles, which do not depend on the weights. The labels use the same thresholds, each airport carries its rank under the default weights so a rank change is never computed by the model, and the robustness draws are centred on the custom weights. The report names the weights and lists the result as a sensitivity check, not the default score.
+
+**Trend**: `airport_trend` gives one airport's passengers, departures, load factor or delay rates month by month (traffic from 2019, delays from 2024-01): each month's value, the same month a year earlier and the change, the highest and lowest month, the last 12 months against the 12 before, and a seasonal profile. Rates come from summed counts; a month without delay data is unknown.
+
 **Context only, never scored**: long-haul share, cargo share, total delay rate, cancellations, departures per usable runway (open runways of at least 3,000 ft) and size tier. The assignment asks about passenger and flight capacity, so other measures stay out of the score.
 - **Long-haul share**: the share of departures at or above 2,000, 2,500 and 3,000 miles (3,000 is the default).
   - The headline counts scheduled passenger flights (class F).
@@ -109,7 +113,8 @@ The product uses one model through one adapter, `backend/agent/llm.py`: Gemini `
 - Asks clarifying questions.
 - Checks for newer data, and refreshes it only when asked.
 - Transcribes spoken questions.
-- Declines out-of-scope requests (cost or ROI, routes between cities, gate or terminal size, live data, non-US airports) and offers the closest answer it can give.
+- Reports live FAA airport status (ground stops, delay programs, delays) with the FAA update time, labelled live and kept apart from the score. "Nothing listed" is reported as no FAA program or reported delay, not as no delays, and closures to private aviation only are never reported as the airport being closed.
+- Declines out-of-scope requests (cost or ROI, routes between cities, gate or terminal size, other live data, non-US airports) and offers the closest answer it can give.
 - Writes the **Verdict** and **Why** of each data answer, and a **Comparison** before them only for investment questions.
 - May add background knowledge only in one sentence that starts with "Background (not from our data):" and contains no numbers.
 
@@ -127,7 +132,7 @@ The product uses one model through one adapter, `backend/agent/llm.py`: Gemini `
 
 **Limits**: at most 7 model calls with tools per question, then one forced answer without tools; one retry after 5 seconds on a rate limit; a failed model call saves nothing. Each call has a thinking budget of 8,192 tokens inside an output cap of 16,384, so a long reasoning step cannot crowd out the answer.
 
-**Prompts**: `prompts/system.md` holds the role, eleven rules, the answer format and six placeholder examples; `prompts/knowledge.md` holds metric definitions and data limits. At startup, code appends the scoring rules generated from the settings (so prompt and code cannot disagree) and the data periods from the manifest. Tool results and earlier messages are treated as data, not instructions.
+**Prompts**: `prompts/system.md` holds the role, thirteen rules, the answer format and six placeholder examples; `prompts/knowledge.md` holds metric definitions and data limits. At startup, code appends the scoring rules generated from the settings (so prompt and code cannot disagree) and the data periods from the manifest. Tool results and earlier messages are treated as data, not instructions.
 
 ## 6. Assumptions, uncertainty and scope
 Every answer that uses data is a report with fixed sections:
@@ -155,10 +160,10 @@ A question that is not about investing (an airport's size, delays, long-haul sha
 | Evals graded by code, not by a model | Repeatable, free, and exact on what matters: airports named, labels, sections, numbers checked. |
 
 ## 8. Evaluation
-- **Tests** (235, `pytest`, on a small fixture dataset with hand-checked values): formulas, scoring determinism, every label rule and threshold edge, robustness, tools with bad input, the loop with a fake model, the report renderer, graders against deliberately broken reports, the data refresh with fake downloads, and the chat backend, voice and UI with a fake agent and a fake transcriber.
+- **Tests** (262, `pytest`, on a small fixture dataset with hand-checked values): formulas, scoring determinism, every label rule and threshold edge, robustness, tools with bad input, the loop with a fake model, the report renderer, graders against deliberately broken reports, the data refresh with fake downloads, the FAA feed parser on a saved real feed, custom weights and the trend with hand-checked values, and the chat backend, voice and UI with a fake agent and a fake transcriber.
 - **Independent recompute** (`scripts/recompute/recompute.py`): recomputes the sample-question figures from the raw files without importing project code. An acceptance test compares them with the tools' output.
-- **Evals on the real model** (`backend/evals/`): 17 code-graded cases covering the four sample questions, multi-turn follow-ups (including a reload from the session store), an ambiguous airport, a "biggest airport" question after a clarification, a newer-data check, out-of-scope and missing-data questions, and prompt-injection and false-memory probes. Each case checks airports named, required and forbidden content, the number check, report mode and sections, labels against the tool's, no financial claim, and figures against the recompute.
-- **Result**: 14 of 16 cases passed in the latest full run (before the newer-data case was added). `profile_should_expand` failed once on a model outage (HTTP 503) and once by adding a ranking call; a tool rule in the prompt fixed it. `background_rule` was cut off when thinking used almost the whole output cap; the thinking budget fixed it. Both have passed every run since, as has the newer-data case on its own.
+- **Evals on the real model** (`backend/evals/`): 20 code-graded cases covering the four sample questions, multi-turn follow-ups (including a reload from the session store and a custom-weights re-rank), an ambiguous airport, a "biggest airport" question after a clarification, a newer-data check, live FAA status, a monthly trend, out-of-scope and missing-data questions, and prompt-injection and false-memory probes. Each case checks airports named, required and forbidden content, the number check, report mode and sections, labels against the tool's, no financial claim, and figures against the recompute.
+- **Result**: all 20 cases passed in the latest full run (2026-11-09). An earlier run of 16 cases passed 14: `profile_should_expand` added a ranking call, which a tool rule in the prompt fixed, and `background_rule` was cut off when thinking used almost the whole output cap, which the thinking budget fixed.
 
 ## 9. Limitations and next steps
 **Limitations**
@@ -168,4 +173,4 @@ A question that is not about investing (an airport's size, delays, long-haul sha
 - T-100 segment data counts a passenger on each leg of a multi-stop trip.
 - US airports only; New England is the only named region (other filters are by state and size tier).
 
-**Next steps**: a trend tool (monthly and seasonal); custom weights; forecast-based growth; a composite congestion measure (taxi-out, per-runway load); a code-built fallback answer and fallback models; a larger eval set with repeated runs and a model judge for prose; a scheduled data refresh; live FAA airport status.
+**Next steps**: custom weights on comparisons and profiles; forecast-based growth; a composite congestion measure (taxi-out, per-runway load); a code-built fallback answer and fallback models; a larger eval set with repeated runs and a model judge for prose; a scheduled data refresh.

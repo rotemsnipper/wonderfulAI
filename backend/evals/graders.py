@@ -110,6 +110,8 @@ def _shown_label(details: str, code: str, row_label: str = "Recommendation") -> 
 def _rows(kind: str, res: dict) -> list[dict]:
     if kind == "ranking":
         return [x for g in res.get("groups", {}).values() for x in g]
+    if kind == "trend":
+        return []  # one airport, no labels and no Comparison to check
     return res.get("airports") or [res]
 
 

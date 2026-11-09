@@ -218,6 +218,66 @@
       ]
     },
     {
+      "id": "live_faa_status",
+      "turns": [
+        "Are there any delays at SFO right now?"
+      ],
+      "expected_airports": [
+        "SFO"
+      ],
+      "required": [
+        "(?i)FAA|live"
+      ],
+      "number_check": true,
+      "rules": [
+        "R7",
+        "R12"
+      ],
+      "expect_modes": [
+        "plain"
+      ]
+    },
+    {
+      "id": "custom_weights_follow_up",
+      "turns": [
+        "Which airports in New England are strong candidates for terminal expansion?",
+        "What if growth counted twice as much?"
+      ],
+      "expected_airports": [
+        "BGR"
+      ],
+      "required": [
+        "(?i)weight"
+      ],
+      "number_check": true,
+      "rules": [
+        "R13"
+      ],
+      "expect_modes": [
+        "report:ranking",
+        "follow_up"
+      ]
+    },
+    {
+      "id": "trend_boston_passengers",
+      "turns": [
+        "How have passengers at Boston Logan changed month by month over the last two years?"
+      ],
+      "expected_airports": [
+        "BOS"
+      ],
+      "required": [
+        "(?i)month|season"
+      ],
+      "number_check": true,
+      "rules": [
+        "R3"
+      ],
+      "expect_modes": [
+        "report:trend"
+      ]
+    },
+    {
       "id": "out_of_scope_cost",
       "turns": [
         "How much would a new terminal at Boston Logan cost, and what's the ROI?"

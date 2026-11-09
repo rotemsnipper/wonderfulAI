@@ -9,6 +9,7 @@ from backend.report import sections as S
 from backend.report.render import build_report, split_model_text
 from backend.tools import tools
 from backend.tools.store import load_store
+from backend.tools.trend import airport_trend
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "serving"
 MODEL_TEXT = ("**Comparison**\nDPX leads on both sides.\n\n**Verdict**\nDPX leads the list.\n\n"
@@ -24,7 +25,8 @@ def fixture_data():
 
 
 def call(name, args):
-    return {"tool": name, "args": args, "result": tools.call(name, args)}
+    result = airport_trend(**args) if name == "airport_trend" else tools.call(name, args)
+    return {"tool": name, "args": args, "result": result}
 
 
 def build(trace, text=MODEL_TEXT, question="Which airports should expand their terminals?", last=None, outcome=PASSED):
@@ -84,6 +86,14 @@ def test_factual_question_leaves_out_scores_strengths_and_the_comparison():
     assert "Passengers" in details and r.section(S.SPECIFIC) is not None
 
 
+def test_custom_weights_are_named_in_the_details_and_assumptions_only_when_used():
+    custom = build([call("rank_airports", {"w_passenger_growth": 0.5, "w_flight_growth": 0.5})])
+    assert custom.section(S.DETAILS).markdown.startswith("*Custom weights: passenger growth 33%")
+    assert "custom weights: a sensitivity check" in custom.section(S.ASSUMPTIONS).markdown
+    default = build([call("rank_airports", {})])
+    assert "Custom weights" not in default.markdown
+
+
 def test_ranking_by_one_metric_shows_that_metric_and_no_robustness():
     r = build([call("rank_airports", {"metric": "load_factor"})], question="Which airports have the fullest planes?")
     assert S.ROBUSTNESS not in ids(r) and "load factor" in r.section(S.DETAILS).markdown.lower()
@@ -93,12 +103,26 @@ def test_ranking_by_one_metric_shows_that_metric_and_no_robustness():
     ("rank_airports", {}),
     ("compare_airports", {"codes": ["LAA", "SAA", "NHV"]}),
     ("airport_profile", {"code": "NRC"}),
+    ("airport_trend", {"code": "DPX", "metric": "load_factor", "months": 30}),
 ])
 def test_every_number_in_code_sections_comes_from_the_tool_result(name, args):
     trace = [call(name, args)]
     r = build(trace)
     code = "\n".join(s.markdown for s in r.sections if s.written_by == S.CODE) + "\n" + "\n".join(r.suggestions)
     assert unverified_numbers(code, pool_from_trace(trace)) == []
+
+
+def test_trend_report_is_factual_with_the_month_table_and_seasonal_profile():
+    trace = [call("airport_trend", {"code": "DPX"})]
+    r = build(trace, question="Should DPX expand, given its passengers month by month?")
+    assert r.kind == "trend" and not r.investment and r.subject == "trend:DPX:passengers"
+    assert ids(r) == [S.DETAILS, S.VERDICT, S.WHY, S.SPECIFIC, S.WARNINGS, S.ASSUMPTIONS, S.STILL_NEEDED]
+    assert "| 2025-08 | 360,000 | 350,000 | +2.9% |" in r.section(S.DETAILS).markdown
+    assert "| Jan | 355,000 |" in r.section(S.SPECIFIC).markdown
+    other_metric = build([call("airport_trend", {"code": "DPX", "metric": "delay_rate"})], last=r.subject)
+    assert other_metric.mode == S.REPORT
+    again = build([call("airport_trend", {"code": "DPX", "months": 12})], last=r.subject)
+    assert again.mode == S.FOLLOW_UP and ids(again)[0] == S.DETAILS
 
 
 def test_same_subject_again_gives_a_short_follow_up():

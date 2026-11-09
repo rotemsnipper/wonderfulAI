@@ -45,6 +45,8 @@ Streamlit opens the app in the browser. It is a local app with a single user. To
 3. What is the percentage of long-haul flights out of Anchorage airport?
 4. What is the unmet flight demand in SFO airport and why?
 
+It also answers follow-ups such as "What if growth counted twice as much?" (a re-ranking with custom weights), "How have passengers at BOS changed month by month?" (a trend) and "Are there delays at SFO right now?" (live FAA airport status).
+
 ## Evals
 The evals call the real model and are graded by code. Run them from the project root:
 ```

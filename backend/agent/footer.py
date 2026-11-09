@@ -62,6 +62,8 @@ def confidence(trace: list[dict], answer: str) -> tuple[str, str]:
         reasons.append(f"partial or thin data for some airports ({', '.join(weak)})")
     if any(t["result"].get("meta", {}).get("uses_proxy") for t in data):
         reasons.append("a proxy measure is used")
+    if any(t["tool"] == "faa_airport_status" for t in data):
+        reasons.append("live FAA status changes minute by minute and is not checked against our data")
     if reasons:
         return "medium", "; ".join(reasons)
     return "high", "full data and direct measures for every airport in the answer"
@@ -79,6 +81,10 @@ def footer(trace: list[dict], answer: str) -> dict:
     notes = []
     if data and all(t.get("reused") for t in data):
         notes.append("Figures reused from an earlier answer in this conversation; no new data was fetched.")
+    # All envelopes, not only data ones: a feed with nothing listed has no airports but is still live data shown.
+    live = next((t for t in _envelopes(trace) if t["tool"] == "faa_airport_status"), None)
+    if live:
+        notes.append(f"Live FAA status as of {live['result']['result']['update_time']}; it changes minute by minute.")
     return {
         "data_period": periods,
         "assumptions": list(dict.fromkeys(assumptions)),

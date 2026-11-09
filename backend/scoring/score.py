@@ -38,6 +38,8 @@ def universe_codes(store: Store) -> list[str]:
 def side_score(pct: dict, weights: dict, side: str) -> float | None:
     names = SIDES[side]
     w_sum = sum(weights[c] for c in names)
+    if w_sum == 0:  # custom weights can switch a side off
+        return None
     return f.weighted_score({c: pct[c] for c in names}, {c: weights[c] / w_sum for c in names})
 
 
@@ -47,7 +49,7 @@ def _breakdown(code: str, raw: dict, pct: dict, weights: dict, version: str) -> 
     if total is not None:
         effective = dict(weights)
         tier, partial = "full", None
-    elif available:
+    elif sum(weights[c] for c in available) > 0:
         w_sum = sum(weights[c] for c in available)
         effective = {c: (weights[c] / w_sum if c in available else 0.0) for c in COMPONENTS}
         missing = [c for c in COMPONENTS if c not in available]
@@ -94,6 +96,17 @@ def score_all(store: Store, settings: dict) -> dict[str, dict]:
         code: _breakdown(code, raw[code], {c: pct[c][code] for c in COMPONENTS}, weights, settings["score_version"])
         for code in codes
     }
+
+
+def reweight(breakdowns: dict[str, dict], weights: dict, settings: dict) -> dict[str, dict]:
+    """The same breakdowns under other weights (summing to 1). Percentiles do not depend on the weights,
+    so only the weighted parts are recomputed; the default weights reproduce `score_all`."""
+    out = {}
+    for code, b in breakdowns.items():
+        raw = {c["name"]: c["raw_value"] for c in b["components"]}
+        pct = {c["name"]: c["percentile"] for c in b["components"]}
+        out[code] = _breakdown(code, raw, pct, weights, settings["score_version"])
+    return out
 
 
 def ranked(breakdowns: dict[str, dict]) -> list[dict]:

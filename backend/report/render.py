@@ -62,7 +62,7 @@ def build_report(trace: list[dict], model_text: str, question: str, footer: dict
     subject = _subject(kind, env)
     follow_up = _same_subject(subject, last_subject) and not S.FULL_REPORT_REQUEST.search(question or "")
     model = _model_sections(model_text, outcome)
-    investment = kind == "ranking" or bool(S.INVESTMENT_QUESTION.search(question or ""))
+    investment = kind == "ranking" or (kind != "trend" and bool(S.INVESTMENT_QUESTION.search(question or "")))
 
     rows = _airports(kind, env)
     halves = _profile_halves(question) if kind == "profile" else None
@@ -114,7 +114,7 @@ def _same_subject(subject: str, last: str | None) -> bool:
     """Same kind, and for airport subjects every airport was already in the last report (a subset)."""
     if not last or subject.split(":")[0] != last.split(":")[0]:
         return False
-    if subject.startswith("ranking:"):
+    if subject.startswith(("ranking:", "trend:")):
         return subject == last
     return set(subject.split(":", 1)[1].split(",")) <= set(last.split(":", 1)[1].split(","))
 
@@ -123,6 +123,8 @@ def _subject(kind: str, env: dict) -> str:
     if kind == "ranking":
         inputs = env.get("inputs") or {}
         return "ranking:" + ",".join(f"{k}={inputs.get(k)}" for k in ("region", "state", "size_tier", "metric"))
+    if kind == "trend":
+        return f"trend:{env['result']['code']}:{env['result']['metric']}"
     return f"{kind}:" + ",".join(sorted(env["meta"]["airports"]))
 
 
@@ -135,6 +137,8 @@ def _profile_halves(question: str) -> tuple[bool, bool]:
 def _code_section(kind: str, sid: str, markdown: str, halves) -> Section:
     if sid == S.SPECIFIC:
         title = S.PROFILE_TITLES[halves] if kind == "profile" else S.SPECIFIC_TITLES[kind]
+    elif sid == S.DETAILS:
+        title = S.DETAILS_TITLES.get(kind, S.TITLES[sid])
     else:
         title = S.TITLES[sid]
     return Section(sid, title, CODE, markdown)
@@ -147,6 +151,8 @@ def _airports(kind: str, env: dict) -> list[dict]:
         return [{**r, "display_metrics": r["metrics"]} for rows in res["groups"].values() for r in rows]
     if kind == "comparison":
         return [{**a, "display_metrics": a["display"]} for a in res["airports"]]
+    if kind == "trend":
+        return [res]
     return [{**res, "display_metrics": res["display"]}]
 
 
@@ -170,6 +176,14 @@ def _recommendation(score: dict) -> str:
 
 def _details(kind: str, env: dict, rows: list[dict], investment: bool) -> str:
     res = env["result"]
+    if kind == "trend":
+        return _month_table(res)
+    if kind == "ranking" and res.get("weights_used"):
+        names = {"passenger_growth": "passenger growth", "load_factor": "load factor",
+                 "flight_growth": "flight growth", "congestion": "congestion"}
+        used = ", ".join(f"{names.get(k, k)} {v * 100:.0f}%" for k, v in res["weights_used"].items())
+        return f"*Custom weights: {used} (default: equal weights).*\n\n" + _details(kind, {**env, "result": {
+            k: v for k, v in res.items() if k != "weights_used"}}, rows, investment)
     if kind == "ranking" and res["metric"] != "score":
         label = next((d["label"] for d in env.get("definitions") or []), res["ranked_by"])
         head = f"| Rank | Airport | Size tier | {label} |\n|---|---|---|---|"
@@ -254,6 +268,8 @@ def _specific(kind: str, env: dict, rows: list[dict], halves) -> str:
         return "\n".join(out)
     if kind == "comparison":
         return _congestion(env, rows)
+    if kind == "trend":
+        return _trend_summary(env)
     long_haul, unmet = halves
     return "\n\n".join(([_long_haul(res)] if long_haul else []) + ([_unmet(res)] if unmet else []))
 
@@ -318,6 +334,35 @@ def _unmet(res: dict) -> str:
     return "\n".join(lines)
 
 
+def _month_table(res: dict) -> str:
+    lines = [f"| Month | {res['label'].capitalize()} | Same month a year earlier | Change |", "|---|---|---|---|"]
+    for m in res["months"]:
+        lines.append(f"| {m['month']} | {m['display'] or UNKNOWN} | {m['prior_year_display'] or 'n/a'} | "
+                     f"{m['change_display'] or 'n/a'} |")
+    return "\n".join(lines) + f"\n\nChange vs the same month a year earlier, in {res['change_unit']}."
+
+
+def _trend_summary(env: dict) -> str:
+    s = env["result"]["summary"]
+    lines = []
+    for key, name in (("highest", "Highest month"), ("lowest", "Lowest month")):
+        if s[key]:
+            lines.append(f"- {name}: {s[key]['month']}, {s[key]['display']}")
+    fl = s["first_vs_last_12"]
+    if fl:
+        lines.append(f"- Year {fl['last_period']} vs year {fl['first_period']}: {fl['last_display'] or UNKNOWN} vs "
+                     f"{fl['first_display'] or UNKNOWN} ({fl['change_display'] or 'n/a'}; {fl['basis']})")
+    lines += [f"- {n}" for n in env.get("notes") or []]
+    se = s["seasonal_profile"]
+    if se:
+        lines.append(f"\n*Seasonal profile: {se['basis']} over the last {se['years']} full years ({se['period']})*"
+                     if se["years"] > 1 else
+                     f"\n*Seasonal profile: one full year ({se['period']})*")
+        lines += ["", "| Month | Value |", "|---|---|"]
+        lines += [f"| {x['month']} | {x['display'] or UNKNOWN} |" for x in se["months"]]
+    return "\n".join(lines)
+
+
 # ---------- fixed sections ----------
 
 def _robustness(env: dict) -> str:
@@ -347,6 +392,8 @@ def _assumptions(env: dict, footer: dict) -> str:
     note = env["result"].get("note")
     if note:
         lines.append(f"- {note}")
+    if env["result"].get("weights_used"):
+        lines.append("- custom weights: a sensitivity check, not the default score")
     lines.append(f"- {_confidence(footer)}")
     return "\n".join(lines)
 
@@ -364,6 +411,9 @@ def _suggestions(kind: str, env: dict, rows: list[dict], halves) -> list[str]:
     if kind == "comparison":
         return [f"Give me a profile of {r['code']}." for r in rows[:3]]
     res = env["result"]
+    if kind == "trend":
+        other = "has the delay rate" if res["metric"] == "passengers" else "have passengers"
+        return [f"How {other} at {res['code']} changed month by month?", f"Give me a profile of {res['code']}."]
     code = res["code"]
     long_haul, unmet = halves
     if long_haul and not unmet:

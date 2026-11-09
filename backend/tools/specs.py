@@ -36,6 +36,15 @@ TOOL_SPECS: list[dict] = [
                 "metric": {"type": "string", "enum": RANK_METRICS},
                 "limit": {"type": "integer", "minimum": 1, "maximum": PER_GROUP_CAP,
                           "description": "airports per size tier"},
+                "w_passenger_growth": {"type": "number", "minimum": 0, "description": (
+                    "optional custom weight for passenger growth (default 0.25), only with metric score; given "
+                    "weights replace the defaults and all four are normalized to sum to 1")},
+                "w_load_factor": {"type": "number", "minimum": 0,
+                                  "description": "optional custom weight for load factor (default 0.25), only with metric score"},
+                "w_flight_growth": {"type": "number", "minimum": 0,
+                                    "description": "optional custom weight for flight growth (default 0.25), only with metric score"},
+                "w_congestion": {"type": "number", "minimum": 0,
+                                 "description": "optional custom weight for congestion (default 0.25), only with metric score"},
             },
         },
     },
@@ -86,5 +95,40 @@ TOOL_SPECS: list[dict] = [
             "old data is kept. Returns the old and new data windows."
         ),
         "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "faa_airport_status",
+        "description": (
+            "Current FAA airport status: ground stops, ground delay programs, arrival and departure delays and "
+            "closures. Live (minutes old) with its own update time; context only, never part of the score, label "
+            "or report. Airline-affecting events are in events; closures to non-scheduled general aviation only "
+            "are in general_aviation_only and do not affect airlines; requested airports with nothing listed are in "
+            "nothing_listed. The feed lists only FAA programs and delays above its reporting threshold, so nothing "
+            "listed does not mean no delays."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"codes": {"type": "array", "items": {"type": "string"},
+                                     "description": "3-letter airport codes; omit for every airport the feed lists"}},
+        },
+    },
+    {
+        "name": "airport_trend",
+        "description": (
+            "One airport's metric month by month: each month's value, the same month a year earlier and the change, "
+            "plus the highest and lowest month, the last 12 months against the 12 before, and a seasonal profile, all "
+            "computed. Use for month-by-month, seasonal or since-when questions about one airport. Needs an airport code."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string"},
+                "metric": {"type": "string", "enum": ["passengers", "departures", "load_factor", "delay_rate",
+                                                      "system_delay_rate"], "description": "default passengers"},
+                "months": {"type": "integer", "minimum": 6, "maximum": 90,
+                           "description": "months ending at the latest month (delay metrics start 2024-01); default 24"},
+            },
+            "required": ["code"],
+        },
     },
 ]

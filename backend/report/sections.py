@@ -27,12 +27,15 @@ TITLES = {
     STILL_NEEDED: "Still needed before investing",
     STATUS: "Warnings and confidence",
 }
-SPECIFIC_TITLES = {"ranking": "Not ranked", "comparison": "Congestion and runways"}
+SPECIFIC_TITLES = {"ranking": "Not ranked", "comparison": "Congestion and runways",
+                   "trend": "Trend summary and seasonal profile"}
+DETAILS_TITLES = {"trend": "Month by month"}
 PROFILE_TITLES = {(True, True): "Long-haul share and unmet demand", (True, False): "Long-haul share",
                   (False, True): "Unmet demand"}
 MODEL_SECTIONS = [COMPARISON, VERDICT, WHY]
 
-KINDS = {"rank_airports": "ranking", "compare_airports": "comparison", "airport_profile": "profile"}
+KINDS = {"rank_airports": "ranking", "compare_airports": "comparison", "airport_profile": "profile",
+         "airport_trend": "trend"}
 REPORT, FOLLOW_UP = "report", "follow_up"
 
 ORDER = [DETAILS, COMPARISON, VERDICT, WHY, SPECIFIC, ROBUSTNESS, WARNINGS, ASSUMPTIONS, STILL_NEEDED]
@@ -42,9 +45,10 @@ REQUIRED = {
     "ranking": [DETAILS, COMPARISON, VERDICT, WHY, WARNINGS, ASSUMPTIONS],
     "comparison": [DETAILS, COMPARISON, VERDICT, WHY, SPECIFIC, WARNINGS, ASSUMPTIONS],
     "profile": [DETAILS, VERDICT, WHY, SPECIFIC, WARNINGS, ASSUMPTIONS],  # Comparison only for investment questions
+    "trend": [DETAILS, VERDICT, WHY, SPECIFIC, WARNINGS, ASSUMPTIONS],  # always factual: no scores, no Comparison
 }
 # The one code section a follow-up on the same subject shows: the block most follow-ups ask about.
-FOLLOW_UP_SECTION = {"ranking": DETAILS, "comparison": SPECIFIC, "profile": SPECIFIC}
+FOLLOW_UP_SECTION = {"ranking": DETAILS, "comparison": SPECIFIC, "profile": SPECIFIC, "trend": DETAILS}
 FULL_REPORT_REQUEST = re.compile(r"(?i)\b(full|detailed|complete) report\b")
 INVESTMENT_QUESTION = re.compile(r"(?i)\b(should|recommend|candidates?|worth|invest|expand|expansion|renovat)")
 LONG_HAUL_QUESTION = re.compile(r"(?i)long[- ]?haul|distance|\bmiles?\b|cutoff")

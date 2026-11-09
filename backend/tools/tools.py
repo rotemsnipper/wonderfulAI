@@ -12,9 +12,9 @@ from functools import cached_property
 from backend.config import SERVING_DIR
 from backend.scoring import formulas, label, metrics
 from backend.scoring.robustness import robustness
-from backend.scoring.score import score_all
+from backend.scoring.score import COMPONENTS, reweight, score_all
 from backend.scoring.warnings import airport_warnings, sort_warnings
-from backend.tools import data_refresh
+from backend.tools import data_refresh, faa_status
 from backend.tools.envelope import DataQuality, Definition, Envelope, Meta, error_result
 from backend.tools.resolver import Resolver
 from backend.tools.store import Store, load_store
@@ -255,9 +255,42 @@ def resolve_airport(query: str) -> dict:
                     meta=Meta(airports=codes)).to_dict()
 
 
+class _Reweighted:
+    """The context with re-weighted score breakdowns, so the shared score helpers read the custom scores."""
+
+    def __init__(self, c: Context, scores: dict):
+        self._c, self.scores = c, scores
+
+    def __getattr__(self, name):
+        return getattr(self._c, name)
+
+
+def _weights(defaults: dict, given: dict) -> dict | str:
+    """Defaults with the given weights replaced, normalized to sum to 1; or the error text."""
+    for name, v in given.items():
+        if v is None:
+            continue
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
+            return f"w_{name} must be a number of 0 or more, got {v!r}"
+    merged = {n: float(given[n]) if given.get(n) is not None else defaults[n] for n in COMPONENTS}
+    total = sum(merged.values())
+    if total == 0:
+        return "the four weights are all zero; give at least one a positive value"
+    return {n: merged[n] / total for n in COMPONENTS}
+
+
 def rank_airports(region: str | None = None, state: str | None = None, size_tier: str | None = None,
-                  metric: str = "score", limit: int = PER_GROUP_CAP) -> dict:
+                  metric: str = "score", limit: int = PER_GROUP_CAP, w_passenger_growth: float | None = None,
+                  w_load_factor: float | None = None, w_flight_growth: float | None = None,
+                  w_congestion: float | None = None) -> dict:
     c = ctx()
+    given = {"passenger_growth": w_passenger_growth, "load_factor": w_load_factor,
+             "flight_growth": w_flight_growth, "congestion": w_congestion}
+    weight_options = [f"w_{n}" for n in COMPONENTS]
+    any_weight = any(v is not None for v in given.values())
+    if any_weight and metric != "score":
+        return error_result(f"weights apply only to metric 'score', not {metric!r}; drop the weights or use 'score'",
+                            ["score"])
     tiers = list(c.settings["size_bands"])
     if region is not None and region not in REGIONS:
         return error_result(f"unknown region {region!r}", list(REGIONS))
@@ -286,6 +319,19 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
     if not pool:
         return error_result("no covered airports match these filters", [])
 
+    defaults = c.settings["weights"]
+    weights = _weights(defaults, given) if any_weight else defaults
+    if isinstance(weights, str):
+        return error_result(weights, weight_options)
+    custom = any(not math.isclose(weights[n], defaults[n], abs_tol=1e-9) for n in COMPONENTS)
+    if not custom:
+        weights = defaults
+    else:
+        default_order = sorted((x for x in pool if c.scores[x]["total_score"] is not None),
+                               key=lambda x: (-c.scores[x]["total_score"], x))
+        default_rank = {x: i + 1 for i, x in enumerate(default_order)}
+        c = _Reweighted(c, reweight(c.scores, weights, c.settings))
+
     mblocks = {x: _metrics_block(c, x) for x in pool}
     key_name = {"score": "total_score", "passenger_growth": "compound_growth_pct_per_year",
                 "flight_growth": "departures_compound_growth_pct_per_year", "load_factor": "load_factor",
@@ -303,6 +349,8 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
                "display": fmt(METRIC_KINDS[key_name], value(x)), "metrics": mblocks[x]["display"]}
         if metric == "score":
             out["score"] = _score_block(c, x)
+        if custom:
+            out["default_rank"] = default_rank.get(x)
         return out
 
     groups, shown, cut = {}, 0, []
@@ -328,18 +376,23 @@ def rank_airports(region: str | None = None, state: str | None = None, size_tier
     }
     shown_codes = [r["code"] for rows in groups.values() for r in rows]
     if metric == "score":
-        rb = robustness([c.scores[x] for x in ranked], c.settings["weights"], c.settings)
+        rb = robustness([c.scores[x] for x in ranked], weights, c.settings)
         result["robustness"] = {
             "summary": rb["summary"], "draws": rb["draws"], "top_k": rb["top_k"],
             "per_airport": {x: {**v, "top_k_share_pct": math.floor(v["top_k_share"] * 100)}
                             for x, v in rb["per_airport"].items() if x in shown_codes},
         }
         result["top_differences"] = _top_differences(c, ranked[:TOP_COMPARED])
+    if custom:
+        result["weights_used"] = {n: round(weights[n], 4) for n in COMPONENTS}
+        result["default_weights"] = dict(defaults)
     codes = shown_codes + unranked
     defs = (["total_score", "compound_growth_pct_per_year", "load_factor", "departures_compound_growth_pct_per_year",
              "system_delay_rate_pct"] if metric == "score" else [key_name])
-    return _envelope("rank_airports", {"region": region, "state": state, "size_tier": size_tier, "metric": metric, "limit": limit},
-                     result, codes, defs)
+    inputs = {"region": region, "state": state, "size_tier": size_tier, "metric": metric, "limit": limit}
+    if any_weight:
+        inputs.update({f"w_{n}": v for n, v in given.items()})
+    return _envelope("rank_airports", inputs, result, codes, defs)
 
 
 def _top_differences(c: Context, top: list[str]) -> list[dict]:
@@ -463,7 +516,13 @@ TOOLS = {
     "airport_profile": airport_profile,
     "check_data_updates": data_refresh.check_data_updates,
     "refresh_data": data_refresh.refresh_data,
+    "faa_airport_status": faa_status.faa_airport_status,
 }
+
+# trend.py builds on the helpers above, so it is imported after them (a top-of-file import would be circular).
+from backend.tools.trend import airport_trend  # noqa: E402
+
+TOOLS["airport_trend"] = airport_trend
 
 
 def call(name: str, args: dict | None) -> dict:

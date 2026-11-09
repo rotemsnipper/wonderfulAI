@@ -65,6 +65,15 @@ def test_footer_notes_reused_data():
     assert footer([e], "As before, LAX delay rate is 19.7%.")["notes"]
 
 
+def test_footer_adds_live_line_only_when_faa_status_was_used():
+    faa = {"tool": "faa_airport_status", "args": {}, "result": {
+        "tool": "faa_airport_status", "inputs": {}, "result": {"update_time": "Sun Nov 8 22:27:39 2026 GMT"},
+        "meta": {"airports": [], "periods": {"faa_nas_status": "Sun Nov 8 22:27:39 2026 GMT"}}}}
+    assert footer([faa], "No FAA delays are listed for SFO.")["notes"] == [
+        "Live FAA status as of Sun Nov 8 22:27:39 2026 GMT; it changes minute by minute."]
+    assert footer([env()], "LAX delay rate is 19.7%.")["notes"] == []
+
+
 def test_warnings_sorted_and_deduplicated():
     ws = [{"airport": "ANC", "type": "cargo_heavy", "severity": "medium", "message": "m"},
           {"airport": "HVN", "type": "partial_data", "severity": "high", "message": "no delay data"}]
