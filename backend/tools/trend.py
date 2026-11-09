@@ -2,7 +2,7 @@
 import calendar
 
 from backend.scoring import trend as T
-from backend.tools.envelope import Definition, Envelope, Meta, error_result
+from backend.tools.envelope import DataQuality, Definition, Envelope, Meta, error_result
 from backend.tools.tools import METRIC_KINDS, _check_code, _r, _warnings, _whole, ctx, fmt
 
 MIN_MONTHS, MAX_MONTHS = 6, 90
@@ -106,10 +106,17 @@ def airport_trend(code: str, metric: str = "passengers", months: int = 24) -> di
     }
     period = _span(span)
     warnings = _warnings(c, [code])
-    source = "delay_causes" if metric in T.DELAY_METRICS else "t100_summary"
+    if metric in T.DELAY_METRICS:
+        source, quality = "delay_causes", c.quality(code, warnings)
+    else:
+        # The missing-delay-data warning and the partial score are about delays; a traffic series is complete.
+        source = "t100_summary"
+        warnings = [w for w in warnings if w["type"] != "partial_data"]
+        quality = DataQuality(tier="full", confidence="medium" if warnings else "high",
+                              reason=", ".join(w["type"] for w in warnings) or "monthly traffic data present")
     return Envelope(
         tool="airport_trend", inputs={"code": code, "metric": metric, "months": n}, result=result,
         definitions=[_definition(metric, period)], warnings=warnings,
-        data_quality={code: c.quality(code, warnings)}, notes=notes,
+        data_quality={code: quality}, notes=notes,
         meta=Meta(airports=[code], periods={source: period}, score_version=c.settings["score_version"]),
     ).to_dict()

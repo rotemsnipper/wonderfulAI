@@ -116,7 +116,7 @@ def test_trend_report_is_factual_with_the_month_table_and_seasonal_profile():
     trace = [call("airport_trend", {"code": "DPX"})]
     r = build(trace, question="Should DPX expand, given its passengers month by month?")
     assert r.kind == "trend" and not r.investment and r.subject == "trend:DPX:passengers"
-    assert ids(r) == [S.DETAILS, S.VERDICT, S.WHY, S.SPECIFIC, S.WARNINGS, S.ASSUMPTIONS, S.STILL_NEEDED]
+    assert ids(r) == [S.DETAILS, S.VERDICT, S.WHY, S.SPECIFIC, S.WARNINGS, S.ASSUMPTIONS]  # no Still needed
     assert "| 2025-08 | 360,000 | 350,000 | +2.9% |" in r.section(S.DETAILS).markdown
     assert "| Jan | 355,000 |" in r.section(S.SPECIFIC).markdown
     other_metric = build([call("airport_trend", {"code": "DPX", "metric": "delay_rate"})], last=r.subject)

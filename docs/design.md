@@ -142,7 +142,7 @@ Every answer that uses data is a report with fixed sections:
 A question that is not about investing (an airport's size, delays, long-haul share or unmet demand) gets a factual report: no scores, labels, strengths or Comparison, so the answer is not buried under the investment screen.
 
 - **Data period** per source, with the prior window and baseline year. **Assumptions** list each metric's proxy note, for example "lower bound of unmet demand".
-- **Answer confidence**: low when an airport the answer is about has partial data (outside a ranking); medium when a proxy is used or a ranking includes partial-data airports; high otherwise.
+- **Answer confidence**: low when an airport the answer is about has partial data (outside a ranking); medium when a proxy is used, a ranking includes partial-data airports or the answer uses live FAA status; high otherwise.
 - **Warnings**: "no delay data" (high severity; congestion unknown, not zero) and "cargo-heavy" (medium).
 - **Still needed before investing**: terminal utilization, construction and operating cost, incremental passengers, revenue per passenger and lease terms, and regulatory and physical constraints, then a line that this is a data screen, not investment advice.
 - **Follow-ups** on the same airports get a short form (Verdict, Why, the answering block, one warnings-and-confidence line). An answer that reuses earlier figures says so.

@@ -58,6 +58,12 @@ def test_airport_without_delay_data_gives_unknown_months_and_the_partial_data_wa
     assert [w["type"] for w in env["warnings"]] == ["partial_data"]
 
 
+def test_traffic_trend_at_an_airport_without_delay_data_is_not_marked_partial():
+    env = airport_trend("NHV", "passengers", 12)
+    assert all(m["value"] is not None for m in env["result"]["months"])
+    assert env["warnings"] == [] and env["data_quality"]["NHV"]["confidence"] == "high"
+
+
 @pytest.mark.parametrize("args", [{"months": 5}, {"months": 12.5}, {"metric": "revenue"}, {"code": "XXX"}])
 def test_bad_input_is_rejected_with_an_error(args):
     assert "error" in airport_trend(**{"code": "DPX", **args})

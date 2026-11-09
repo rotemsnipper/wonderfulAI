@@ -60,7 +60,7 @@ A full run takes about five minutes on the free tier. Results are written to `ba
 |---|---|
 | `backend/ingest/` | fetchers, cleaning, build checks and the serving build |
 | `backend/scoring/` | formulas, capacity-need score, label, robustness, unmet demand, warnings |
-| `backend/tools/` | the agent tools (four data tools, two data-update tools), the airport resolver and the data store |
+| `backend/tools/` | the agent tools (five data tools, live FAA status, two data-update tools), the airport resolver and the data store |
 | `backend/agent/` | Gemini adapter, agent loop, number checks, footer, session store, prompt builder |
 | `backend/report/` | report renderer and section definitions |
 | `backend/ui/` | Streamlit chat app and its backend |

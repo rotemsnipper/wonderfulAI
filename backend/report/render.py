@@ -62,7 +62,9 @@ def build_report(trace: list[dict], model_text: str, question: str, footer: dict
     subject = _subject(kind, env)
     follow_up = _same_subject(subject, last_subject) and not S.FULL_REPORT_REQUEST.search(question or "")
     model = _model_sections(model_text, outcome)
-    investment = kind == "ranking" or (kind != "trend" and bool(S.INVESTMENT_QUESTION.search(question or "")))
+    # A trend is always factual, even when the question also asks about investing.
+    asks_investment = kind != "trend" and bool(S.INVESTMENT_QUESTION.search(question or ""))
+    investment = kind == "ranking" or asks_investment
 
     rows = _airports(kind, env)
     halves = _profile_halves(question) if kind == "profile" else None
@@ -80,7 +82,7 @@ def build_report(trace: list[dict], model_text: str, question: str, footer: dict
 
     code[S.WARNINGS] = _warnings(warnings)
     code[S.ASSUMPTIONS] = _assumptions(env, footer)
-    if S.INVESTMENT_QUESTION.search(question or ""):
+    if asks_investment:
         code[S.STILL_NEEDED] = "\n".join(f"- {x}" for x in S.STILL_NEEDED_ITEMS) + f"\n\n{S.ADVICE_LINE}"
     by_id = {s.id: s for s in model if investment or s.id != S.COMPARISON}
     out = []
